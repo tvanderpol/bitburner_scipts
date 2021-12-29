@@ -1,10 +1,10 @@
 /** @param {NS} ns **/
 
 const MIN_SLEEP = 50;
-const FULL_SLEEP = 60_000;
-const MIN_MONEY = 2_000_000;
-const DESIRED_NODE_COUNT = 16;
-const DESIRED_NODE_LEVEL = 80;
+const FULL_SLEEP = 30_000;
+const MIN_MONEY = 200_000;
+const DESIRED_NODE_COUNT = 8;
+const DESIRED_NODE_LEVEL = 100;
 const DESIRED_NODE_RAM = 16;
 const DESIRED_NODE_CORES = 8;
 
@@ -15,20 +15,6 @@ function getNodeListFor(numNodes) {
     }
 
     return nodes;
-}
-
-function ensureNodesBought(ns, nodeCount) {
-    while (ns.hacknet.numNodes() < nodeCount) {
-        if (currentAvailableMoney(ns) >= ns.hacknet.getPurchaseNodeCost()) {
-            var nodeIdx = ns.hacknet.purchaseNode();
-            if (-1 != nodeIdx) {
-                ns.toast("Bought additional Hacknet node");
-            }
-        }
-        if (currentAvailableMoney(ns) < ns.hacknet.getPurchaseNodeCost()) {
-            sleep(10000);
-        }
-    }
 }
 
 function currentAvailableMoney(ns) {
@@ -62,7 +48,7 @@ function findCheapestUpgrade(ns, nodeList) {
             currentCheapest = { nodeIdx: nodeIdx, type: "ram", price: ramCost }
         }
 
-        if (coreCost < currentCheapest["price"] && nodeStats["core"] < DESIRED_NODE_CORES) {
+        if (coreCost < currentCheapest["price"] && nodeStats["cores"] < DESIRED_NODE_CORES) {
             currentCheapest = { nodeIdx: nodeIdx, type: "core", price: coreCost }
         }
     })
@@ -76,7 +62,20 @@ export async function main(ns) {
     ns.disableLog("getServerMoneyAvailable")
     ns.disableLog("sleep")
 
-    ensureNodesBought(ns, DESIRED_NODE_COUNT)
+    while (ns.hacknet.numNodes() < DESIRED_NODE_COUNT) {
+        if (currentAvailableMoney(ns) >= ns.hacknet.getPurchaseNodeCost()) {
+            var nodeIdx = ns.hacknet.purchaseNode();
+            if (-1 != nodeIdx) {
+                ns.toast("Bought additional Hacknet node");
+            }
+        }
+
+        if (currentAvailableMoney(ns) < ns.hacknet.getPurchaseNodeCost()) {
+            ns.print("Can't afford to buy all nodes. Gonna sleep for a while");
+            await ns.sleep(FULL_SLEEP);
+        }
+    }
+
     const nodeList = getNodeListFor(DESIRED_NODE_COUNT)
     ns.print("Reached desired hacknet: " + reachedDesiredHacknet(ns, nodeList));
     while (!reachedDesiredHacknet(ns, nodeList)) {
@@ -99,7 +98,7 @@ export async function main(ns) {
         }
 
         // If we're getting low on cash, let's give ourselves some time before trying again:
-        if (currentAvailableMoney(ns) <= upgrade["price"] * 2) {
+        if (currentAvailableMoney(ns) < (upgrade["price"] * 2)) {
             ns.toast("HCKNTMGR: Running a bit low on cash there, easing on upgrades", "warning")
             ns.print("Can't afford next upgrade: " + upgrade["type"] + " on node " + upgrade["nodeIdx"] + " for $" + upgrade["price"].toFixed(0))
             ns.print("Sleeping for a while to recoup some cash")
