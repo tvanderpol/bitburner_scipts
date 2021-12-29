@@ -1,0 +1,55 @@
+var scriptName = "simple_hack.script";
+var scriptRamCost = getScriptRam(scriptName);;
+
+var desiredRAM = 8;
+var maxRAM     = 8192;
+
+if(args.length > 0) {
+	desiredRAM = args[0];
+}
+
+function copyAndStart(scriptName, hostname) {
+	scp(scriptName, hostname);
+	scriptKill(scriptName, hostname);
+	var availableRam = getServerMaxRam(hostname) - getServerUsedRam(hostname);
+	var scriptRamCost = getScriptRam(scriptName);
+	var scriptThreads = Math.floor(availableRam / scriptRamCost);
+	tprint("Starting " + scriptName + " on " + hostname + "(" + availableRam +" GB ram) with " + scriptThreads + " threads.");
+	exec(scriptName, hostname, scriptThreads);
+}
+
+while( desiredRAM <= maxRAM) {
+	if(getServerMoneyAvailable("home") > getPurchasedServerCost(desiredRAM)) {
+		var allUpgraded = true;
+		for(var i = 0; i < getPurchasedServerLimit(); i++) {
+			var hostname = "pserv-" + i;
+			if(serverExists(hostname)) {
+				var currentRam = getServerMaxRam(hostname);
+				if(currentRam < desiredRAM && getServerMoneyAvailable("home") > getPurchasedServerCost(desiredRAM)) {
+					allUpgraded = false;
+					scriptKill(scriptName, hostname);
+					deleteServer(hostname);
+					tprint("Buying " + hostname + " with " + desiredRAM + "GB RAM");
+					var hostname = purchaseServer(hostname, desiredRAM);
+					if(hostname != "") {
+						copyAndStart(scriptName, hostname);
+					} else {
+						tprint("Attempting to buy " + hostname + " with " + desiredRAM + " GB of RAM failed.");
+					}
+				}
+			} else {
+				if(getServerMoneyAvailable("home") > getPurchasedServerCost(desiredRAM)) {
+					purchaseServer(hostname, desiredRAM);
+					copyAndStart(scriptName, hostname);
+				}
+			}
+		}
+
+		if(allUpgraded) {
+			tprint("All servers upgraded, doubling RAM request.");
+			desiredRAM *= 2;
+		}
+
+	}
+	sleep(10000);
+}

@@ -1,0 +1,17 @@
+var scriptName = "simple_hack.script";
+
+function copyAndStart(scriptName, hostname) {
+	scp(scriptName, hostname);
+	scriptKill(scriptName, hostname);
+	var availableRam = getServerMaxRam(hostname) - getServerUsedRam(hostname);
+	var scriptRamCost = getScriptRam(scriptName);
+	var scriptThreads = Math.floor(availableRam / scriptRamCost);
+	tprint("Starting " + scriptName + " on " + hostname + "(" + availableRam +" GB ram) with " + scriptThreads + " threads.");
+	exec(scriptName, hostname, scriptThreads);
+	
+}
+
+for(var i = 0; i < getPurchasedServerLimit(); i++) {
+	var hostname = "pserv-" + i;
+	copyAndStart(scriptName, hostname);
+}

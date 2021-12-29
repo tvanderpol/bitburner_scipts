@@ -1,0 +1,41 @@
+var target = "joesguns";
+
+var moneyThresh = getServerMaxMoney(target) * 0.80;
+var securityThresh = getServerMinSecurityLevel(target) + 5;
+
+if(fileExists("BruteSSH.exe", "home")) {
+	brutessh(target);
+}
+
+if(fileExists("FTPCrack.exe", "home")) {
+	ftpcrack(target);
+}
+
+if(fileExists("FTPCrack.exe", "home")) {
+	ftpcrack(target);
+}
+
+if(fileExists("HTTPWorm.exe", "home")) {
+	httpworm(target);
+}
+
+if(fileExists("relaySMTP.exe", "home")) {
+	relaysmtp(target);
+}
+
+if(fileExists("SQLInject.exe", "home")) {
+	sqlinject(target);
+}
+
+
+nuke(target);
+
+while(true) {
+	if(getServerSecurityLevel(target) > securityThresh) {
+		weaken(target);
+	} else if(getServerMoneyAvailable(target) < moneyThresh) {
+		grow(target);
+	} else {
+		hack(target);
+	}
+}
