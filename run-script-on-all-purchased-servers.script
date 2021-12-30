@@ -1,17 +1,24 @@
-var scriptName = "simple_hack.script";
+var scriptName = "pluck.js"
+var weakenScript = "weaken.js"
+var growScript = "grow.js"
+var hackScript = "hack.js"
+var target = "the-hub"
+var percentageToTake = 0.20
 
 function copyAndStart(scriptName, hostname) {
-	scp(scriptName, hostname);
-	scriptKill(scriptName, hostname);
-	var availableRam = getServerMaxRam(hostname) - getServerUsedRam(hostname);
-	var scriptRamCost = getScriptRam(scriptName);
-	var scriptThreads = Math.floor(availableRam / scriptRamCost);
-	tprint("Starting " + scriptName + " on " + hostname + "(" + availableRam +" GB ram) with " + scriptThreads + " threads.");
-	exec(scriptName, hostname, scriptThreads);
+	scp(scriptName, hostname)
+	scp(weakenScript, hostname)
+	scp(growScript, hostname)
+	scp(hackScript, hostname)
 	
+	killall(hostname)
+	exec(scriptName, hostname, 1, target, percentageToTake)
+	// exec(scriptName, hostname, 1, target)
 }
 
 for(var i = 0; i < getPurchasedServerLimit(); i++) {
-	var hostname = "pserv-" + i;
-	copyAndStart(scriptName, hostname);
+	var hostname = "pserv-" + i
+	toast("Copying " + scriptName + " to " + hostname + " and kicking things off.")
+	copyAndStart(scriptName, hostname)
+	sleep(10000)
 }

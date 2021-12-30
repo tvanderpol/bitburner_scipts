@@ -2,11 +2,11 @@
 
 const MIN_SLEEP = 50;
 const FULL_SLEEP = 30_000;
-const MIN_MONEY = 200_000;
-const DESIRED_NODE_COUNT = 8;
-const DESIRED_NODE_LEVEL = 100;
-const DESIRED_NODE_RAM = 16;
-const DESIRED_NODE_CORES = 8;
+const MIN_MONEY = 0;
+const DESIRED_NODE_COUNT = 16;
+const DESIRED_NODE_LEVEL = 200;
+const DESIRED_NODE_RAM = 64;
+const DESIRED_NODE_CORES = 12;
 
 function getNodeListFor(numNodes) {
     var nodes = [];
