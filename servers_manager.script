@@ -1,5 +1,5 @@
 var scriptName = "simple_hack.script";
-var scriptRamCost = getScriptRam(scriptName);;
+var scriptRamCost = getScriptRam(scriptName);
 
 var desiredRAM = 8;
 var maxRAM     = 8192;

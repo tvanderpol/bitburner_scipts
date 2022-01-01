@@ -1,196 +1,157 @@
 /** @param {NS} ns **/
 
-let globalServerList = new Map()
+let serverList = new Map()
 
-class Server {
-  constructor(ns, value) {
-    this.ns = ns
-    this.value = value;
-    this.descendents = [];
-    this.parent = [];
-    this.root = false;
-    this.processed = false
-  }
-
-  get hostname() {
-    return this.value["hostname"]
-  }
-
-  get requiredHackingSkill() {
-    return this.value["requiredHackingSkill"]
-  }
-
-  get moneyMax() {
-    return this.value["moneyMax"]
-  }
-
-  get minDifficulty() {
-    return this.value["minDifficulty"]
-  }
-
-  get rewardRatio() {
-    return this.moneyMax / this.minDifficulty
-  }
-
-  get connectedServers() {
-    return this.descendents
-  }
-
-  set connectedServers(list) {
-    if (Array.isArray(list)) {
-      this.descendents = list
-    } else {
-      this.ns.fprint("Trying to add NotAnArray to descendents for " + this.hostname + " (running on " + this.ns.getServer().hostname + ")")
-    }
-  }
-
-  updateDetails() {
-    this.value.details = this.ns.getServer(this.hostname)
-  }
-
-  breach() {
-    if (this.ns.fileExists("BruteSSH.exe", "home")) {
-      this.ns.brutessh(this.hostname);
-    }
-
-    if (this.ns.fileExists("FTPCrack.exe", "home")) {
-      this.ns.ftpcrack(this.hostname);
-    }
-
-    if (this.ns.fileExists("FTPCrack.exe", "home")) {
-      this.ns.ftpcrack(this.hostname);
-    }
-
-    if (this.ns.fileExists("HTTPWorm.exe", "home")) {
-      this.ns.httpworm(this.hostname);
-    }
-
-    if (this.ns.fileExists("relaySMTP.exe", "home")) {
-      this.ns.relaysmtp(this.hostname);
-    }
-
-    if (this.ns.fileExists("SQLInject.exe", "home")) {
-      this.ns.sqlinject(this.hostname);
-    }
-
-    this.ns.print("About to nuke " + this.hostname)
-    this.ns.nuke(this.hostname);
-  }
-}
-
-function serverEntryFor(ns, hostname) {
-  if (globalServerList.has(hostname)) {
-    return globalServerList.get(hostname)
+function serverEntryFor(hostname, parent, explored = false) {
+  if (serverList.has(hostname)) {
+    return serverList.get(hostname)
   } else {
-    globalServerList.set(hostname, new Server(ns, ns.getServer(hostname)))
-    return globalServerList.get(hostname)
+    serverList.set(hostname, {hostname: hostname, parent: parent, explored: explored})
+    return serverList.get(hostname)
   }
 }
 
-function alreadySeen(hostname) {
-  return globalServerList.has(hostname)
-}
-
-function connectedServersFor(ns, server) {
-  if (!(server instanceof Server)) {
-    ns.tprint("server: " + server + " isn't a Server object")
-    return
-  }
-  return ns.scan(server.hostname)
-    .map(name => { return { hostname: name, details: ns.getServer(name) } })
-    .filter(info => { return !info.details.purchasedByPlayer })
-    .filter(info => { return !alreadySeen(info["hostname"]) })
-    .map(info => { return serverEntryFor(ns, info["hostname"]) })
-    .map(newServer => { newServer.parent = server; return newServer })
-    // .filter(newServer => { return newServer.parent == newServer })
-    // .map(server => { if(alreadySeen(server.hostname)) {server.processed = true}; return server })
-}
-
-function detectCyclicalRelationships(ns, node) {
-  let parentage = [node, node.parent]
-  let parentToCheck = node.parent;
-  while(!parentToCheck.root) {
-    parentage.push(parentToCheck.parent)
-    parentToCheck = parentToCheck.parent
-    ns.tprint("Parentage so far: " + parentage.map(p => p.hostname).join(", "))
+function breach(ns, hostname) {
+  if (ns.fileExists("BruteSSH.exe", "home")) {
+    ns.brutessh(hostname);
   }
 
-  ns.tprint(node.hostname + " has cyclical parentage(" + parentage.map(p => p.hostname) + "): " + (new Set(parentage).size != parentage.length))
-
-  return (new Set(parentage).length != parentage.length)
-}
-
-function processConnectedServers(ns, parentNode) {
-  ns.tprint("processing children of " + parentNode.hostname)
-  parentNode.descendents.forEach(node => { ns.tprint("gonna check " + node.hostname + " is processed: " + node.processed) })
-  let nodesToProcess = parentNode.descendents.filter(node => { return !node.processed })
-    // .filter(node => detectCyclicalRelationships(ns, node))
-  ns.tprint("nodesToProcess.length: " + nodesToProcess.length);
-  nodesToProcess.forEach(node => { ns.tprint("processing " + node.hostname) })
-  nodesToProcess.forEach(node => { node.breach() })
-  nodesToProcess.forEach(node => { node.updateDetails() })
-  nodesToProcess.forEach(node => { node.connectedServers = connectedServersFor(ns, node) })
-  nodesToProcess.forEach(node => { ns.tprint("found " + node.descendents.length + " connected servers") })
-  nodesToProcess.forEach(node => { node.processed = true })
-  nodesToProcess.forEach(node => { processConnectedServers(ns, node) })
-}
-
-function topThreeServers(ns, serverList) {
-  let formattedList = []
-  for (const entry of serverList) {
-    let hostname = entry[0]
-    let details = entry[1]
-    formattedList.push({
-      hostname: hostname,
-      requiredHackingSkill: details.requiredHackingSkill,
-      moneyMax: details.moneyMax,
-      minDifficulty: details.minDifficulty,
-      rewardRatio: details.rewardRatio,
-    })
+  if (ns.fileExists("FTPCrack.exe", "home")) {
+    ns.ftpcrack(hostname);
   }
 
-  return formattedList
-    .filter(entry => entry["requiredHackingSkill"] <= ns.getHackingLevel())
-    .sort((a, b) => b["rewardRatio"] - a["rewardRatio"])
-    .map(server => { return server['hostname'] + "[" + server['requiredHackingSkill'] + "]" })
-    .slice(0, 3)
-    .join(", ")
+  if (ns.fileExists("FTPCrack.exe", "home")) {
+    ns.ftpcrack(hostname);
+  }
+
+  if (ns.fileExists("HTTPWorm.exe", "home")) {
+    ns.httpworm(hostname);
+  }
+
+  if (ns.fileExists("relaySMTP.exe", "home")) {
+    ns.relaysmtp(hostname);
+  }
+
+  if (ns.fileExists("SQLInject.exe", "home")) {
+    ns.sqlinject(hostname);
+  }
+
+  let serverDetails = ns.getServer(hostname)
+
+  if(serverDetails.openPortCount >= serverDetails.numOpenPortsRequired) {
+    ns.print("Rooting " + hostname)
+    ns.nuke(hostname);
+  } else {
+    ns.print(hostname + " is too tough for right now.")
+  }
 }
 
-function findServerPath(ns, searchNode, searchName, acc = []) {
-  acc.push(searchNode.hostname)
+function renderPath(node) {
+  let parentage = [node.parent, node]
+  let parent = node.parent
+  while(parent != null) {
+    parentage.unshift(parent.parent)
+    parent = parent.parent
+  }
 
-  let path = []
+  let nodeHierarchy = parentage
+    .filter(p => p != null)
+    .map(p => p["hostname"])
 
-  searchNode.connectedServers.forEach(node => {
-    let hostname = node.hostname
-    acc.push(hostname)
-    ns.tprint("Checking if search '" + searchName + "' matches " + acc.join(" > ") + " > [" + hostname + "]")
-    if (hostname == searchName) {
-      path.push(acc.join(" > "))
-      // return 
-    } else {
-      if (node.connectedServers.length > 0) {
-        // ns.tprint("This one ain't it but it's got kids: " + node)
-        findServerPath(ns, node, searchName, acc)
+  let readablePath = "/" + nodeHierarchy.join("/")
+  let connectablePath = "connect " + nodeHierarchy.slice(1, nodeHierarchy.length).join("; connect ") + ";"
+  return `
+    Path: ${readablePath}
+    EZ-cnx: 
+      ${connectablePath}
+  `
+}
+
+function searchForHost(hostname) {
+  if(serverList.has(hostname)) {
+    return renderPath(serverList.get(hostname))
+  } else {
+    return "No host named '" + hostname + "' found on network."
+  }
+}
+
+function mapServers(ns) {
+  let queue = []
+  let root = serverEntryFor("home", null)
+  queue.push(root)
+  while(queue.length > 0) {
+    let target = queue.pop()
+    if(!target["explored"]) {
+      let children = ns.scan(target["hostname"])
+      if(children.length === 0) {
+        return renderPath(target, searchTerm)
       } else {
-        return
+        children.forEach(c => queue.push(serverEntryFor(c, target)))
       }
+      target["explored"] = true
     }
-  })
+  }
+}
 
-  return path
+function allServers() {
+  let hostnames = []
+  serverList.forEach((_, hostname) => hostnames.push(hostname))
+  return hostnames
+}
+
+function renderServer(s) {
+  return `=== ${s.hostname} ===
+  hacking req: ${s.requiredHackingSkill}
+  maxMoney: ${s.moneyMax}
+  rewardRatio: ${s.moneyMax / s.minDifficulty}
+  growth: ${s.serverGrowth}`
+}
+
+function serverAttractivenessScore(s) {
+  let rewardRatio = s.moneyMax / s.minDifficulty
+  
+  return rewardRatio
+}
+
+export function currentTargetList(ns) {
+  return allServers()
+    .map(s => ns.getServer(s))
+    .filter(s => s.requiredHackingSkill <= ns.getHackingLevel())
+    .filter(s => s.hasAdminRights )
+    .sort((a, b) => serverAttractivenessScore(b) - serverAttractivenessScore(a))
+    .slice(0, 3)
+}
+
+export function currentComputeTargets(ns) {
+  return allServers()
+    .map(s => ns.getServer(s))
+    .filter(s => s.requiredHackingSkill <= ns.getHackingLevel())
+    .filter(s => s.hasAdminRights )
+    .filter(s => s.maxRam > 0)
+    .map(s => { return s.hostname })
 }
 
 export async function main(ns) {
   ns.toast("SCNNR: Engaged", "info")
-  let home = serverEntryFor(ns, "home")
-  home.processed = true
-  home.root = true
+  mapServers(ns)
 
-  home.connectedServers = connectedServersFor(ns, home)
-  processConnectedServers(ns, home)
+  let command;
+  let value;
+  if(ns.args.length > 0) {
+    command = ns.args[0]
+    value = ns.args[1]
+  }
 
-  ns.tprint("Here's the juiciest targets so far:\n" + topThreeServers(ns, globalServerList))
-  ns.tprint("Server path for mystery '.': " + findServerPath(ns, home, "I.I.I.I"))
+  if(command === "find") {
+     ns.tprint(searchForHost(value))
+  } else if(command === "root") {
+    allServers().forEach(host => breach(ns, host))
+    ns.tprint("Rooted what I could!")
+  } else if(command === "listAll") {
+    ns.tprint("All servers I found: " + allServers().join(", "))
+  } else if(command === "targets") {
+    ns.tprint("Targets found:\n\n" + currentTargetList(ns).map(s => { return renderServer(s) }).join("\n"))
+  } else if(command === "compute") {
+    ns.tprint("Targets found:\n\n" + currentComputeTargets(ns).join(", "))
+  }
 }
