@@ -22,35 +22,34 @@ export default class {
     }
 
     get allServers() {
-        return this.accessibleServers.map(s => this.ns.getServer(s))
+        return this.accessibleServers
     }
 
-    randomTarget() {
-        return this.targets[Math.floor(Math.random() * this.targets.length)]
+    hackTarget() {
+        // return this.targets[Math.floor(Math.random() * this.targets.length)]
+        return this.targets[0]
     }
 
-    async deployScripts(server) {
-        let targetHost = server.hostname
-        if (!this.ns.fileExists(this.script, targetHost)) {
-            await this.ns.scp(this.script, targetHost)
-            this.ns.tprint("Want to copy " + this.script + " to " + targetHost)
+    async deployScriptsOn(server) {
+        if (!this.ns.fileExists(this.script, server.hostname)) {
+            await this.ns.scp(this.script, server.hostname)
         }
     }
 
-    async runScripts(server) {
+    async runScriptsOn(server) {
         let targetHost = server.hostname
         let availableRam = server.maxRam - server.ramUsed
         let threadCount = Math.floor(availableRam / this.scriptMemory)
         // this.ns.tprint("availableRam: " + availableRam)
         // this.ns.tprint("this.scriptMemory: " + this.scriptMemory)
         if (threadCount > 0) {
-            let hackTarget = this.randomTarget().hostname
-            this.ns.tprint("Hostname: " + hackTarget)
-            this.ns.tprint("exec: " + [this.script, targetHost, threadCount, hackTarget])
+            let hackTarget = this.hackTarget().hostname
+            this.ns.print("exec: " + [this.script, targetHost, threadCount, hackTarget])
+            this.messenger.queue("Starting " + targetHost + ":/" + this.script + " targetted at " + hackTarget, "info")
             await this.ns.exec(this.script, targetHost, threadCount, hackTarget)
-            this.messenger.queue("Starting " + targetHost + ":/" + this.script + " targetted at " + target, "info")
         }
     }
+
 
     usefulServers() {
         return this.allServers
@@ -60,12 +59,10 @@ export default class {
     }
 
     async plan() {
-        let usefulServers = this.usefulServers().splice(0, 3)
-        usefulServers.forEach(async s => {
-            await this.deployScripts(s).then(val => {
-                this.runScripts(s)
-            })
-        })
-        // this.ns.tprint("usefulServers count: " + usefulServers.length)
+        let usefulServers = this.usefulServers()
+        for (let server of usefulServers) {
+            await this.deployScriptsOn(server)
+            await this.runScriptsOn(server)
+        }
     }
 }

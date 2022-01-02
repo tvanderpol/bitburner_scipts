@@ -9,17 +9,6 @@ import GlobalMessenger from "global_messenger.js"
 import NF from "util_number_formatter.js"
 
 
-function upgradeFleet(ns, serverFleetManager) {
-    let nf = new NF(ns)
-    let nextFleetUpgradeCost = serverFleetManager.nextUpgradeCost()
-    let currentBalance = ns.getServerMoneyAvailable("home");
-    let desiredSpend = currentBalance * 0.1
-    let maxSpend = currentBalance * 0.12
-    if (nextFleetUpgradeCost < desiredSpend) {
-        serverFleetManager.buyNextUpgrade(maxSpend)
-    }
-}
-
 export async function main(ns) {
     ns.disableLog("ALL")
     let messenger = new GlobalMessenger(ns, "OVERMIND")
@@ -43,16 +32,24 @@ export async function main(ns) {
         networkScanner.mapServers()
         let inaccessibleHosts = networkScanner.breachAll()
         messenger.queue("Can't root " + inaccessibleHosts + " servers yet", "warning")
-        
+
         workloadManager.botnet = networkScanner.allRootedServers
 
         if (serverFleetManager.upgradesRemaining()) {
-            upgradeFleet(ns, serverFleetManager)
+            let nextFleetUpgradeCost = serverFleetManager.nextUpgradeCost()
+            let currentBalance = ns.getServerMoneyAvailable("home");
+            let desiredSpend = currentBalance * 0.1
+            let maxSpend = currentBalance * 0.12
+            if (nextFleetUpgradeCost < desiredSpend) {
+                serverFleetManager.buyNextUpgrade(maxSpend)
+            } else {
+                messenger.queue("Next upgrade costs " + nf.money(nextFleetUpgradeCost) + " - bit out of the budget", "info")
+            }
         }
 
         let hackTargets = networkScanner.currentTargetList()
         workloadManager.targetList = hackTargets
-        
+
         await workloadManager.plan()
 
         messenger.emit()
