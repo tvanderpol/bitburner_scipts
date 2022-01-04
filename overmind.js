@@ -17,29 +17,30 @@ export async function main(ns) {
     let toolsManager = new ToolsManager(ns)
     let networkScanner = new NetworkScanner(ns, messenger)
     let nf = new NF(ns)
-    let lastMessaged = 0
+
+    workloadManager.clearSlate()
 
     while (true) {
         // TODO: manage hacknet buying
+        let currentBalance = ns.getServerMoneyAvailable("home");
 
         let missingTools = toolsManager.checkForMissingTools()
-        if (missingTools.size != 0) {
-            for (let tool of missingTools) {
-                messenger.queue("Missing tool: " + tool, "warning")
-            }
+        if (missingTools.length > 0 && toolsManager.sufficientCashForNextTool(currentBalance)) {
+            messenger.queue(missingTools.length + " missing tools.", "warning")
         }
 
         networkScanner.mapServers()
         let inaccessibleHosts = networkScanner.breachAll()
-        messenger.queue("Can't root " + inaccessibleHosts + " servers yet", "warning")
+        if(inaccessibleHosts > 0) {
+            messenger.queue("Can't root " + inaccessibleHosts + " servers yet", "warning")
+        }
 
         workloadManager.botnet = networkScanner.allRootedServers
 
         if (serverFleetManager.upgradesRemaining()) {
             let nextFleetUpgradeCost = serverFleetManager.nextUpgradeCost()
-            let currentBalance = ns.getServerMoneyAvailable("home");
-            let desiredSpend = currentBalance * 0.1
-            let maxSpend = currentBalance * 0.12
+            let desiredSpend = currentBalance * 0.5
+            let maxSpend = currentBalance * 0.6
             if (nextFleetUpgradeCost < desiredSpend) {
                 serverFleetManager.buyNextUpgrade(maxSpend)
             } else {
@@ -48,6 +49,7 @@ export async function main(ns) {
         }
 
         let hackTargets = networkScanner.currentTargetList()
+        // ns.tprint("hacktargets: " + hackTargets.map(s => s.hostname))
         workloadManager.targetList = hackTargets
 
         await workloadManager.plan()

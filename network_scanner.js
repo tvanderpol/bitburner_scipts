@@ -3,6 +3,7 @@ export default class {
     constructor(ns, messenger) {
         this.ns = ns
         this.messenger = messenger
+        this.timeFactor = 0.05 // Weakentime can't be more than this percentage of timeSinceLastAug
         this.serverList = new Map()
     }
 
@@ -13,17 +14,24 @@ export default class {
     }
 
     get allRootedServers() {
-        let hostnames = []
-        this.serverList.forEach((_, hostname) => hostnames.push(hostname))
-        return hostnames
+        return this.allServerHostnames
+            .map(s => this.ns.getServer(s))
+            .filter(s => s.hasAdminRights)
     }
 
+    meetsTimeFactor(server) {
+        let weakenTime = this.ns.getWeakenTime(server.hostname)
+        return weakenTime / this.ns.getTimeSinceLastAug() < this.timeFactor
+    }
 
-    currentTargetList(targetCount = 3) {
+    currentTargetList(targetCount = 15) {
         return this.allServerHostnames
             .map(s => this.ns.getServer(s))
             .filter(s => s.requiredHackingSkill <= this.ns.getHackingLevel())
+            .filter(s => !s.purchasedByPlayer)
             .filter(s => s.hasAdminRights)
+            // TODO: This needs a null case guard when restarting fresh
+            // .filter(s => this.meetsTimeFactor(s))
             .sort((a, b) => this.scoreServer(b) - this.scoreServer(a))
             .slice(0, targetCount)
     }
@@ -40,6 +48,7 @@ export default class {
             return this.serverList.get(hostname)
         } else {
             this.serverList.set(hostname, { hostname: hostname, parent: parent, explored: explored })
+            //this.ns.tprint("Adding " + hostname + " to serverList")
             return this.serverList.get(hostname)
         }
     }
@@ -104,5 +113,24 @@ export default class {
         } else {
             return false
         }
+    }
+
+    findPath(hostname) {
+        this.mapServers()       
+        if (this.serverList.has(hostname)) {
+            let serverEntry = this.serverList.get(hostname)
+            let nodePath = [serverEntry.parent.hostname, serverEntry.hostname]
+            let parent = serverEntry.parent
+            let depth = 0
+            while(parent.hostname != "home" || depth > 20) {
+                depth += 1
+                parent = parent.parent
+                nodePath.unshift(parent.hostname)
+            }
+            return nodePath
+        } else {
+            return "No server by that name!"
+        }
+
     }
 }

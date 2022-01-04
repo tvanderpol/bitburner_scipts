@@ -62,18 +62,31 @@ function calculateGrowthFactor(moneyMax, moneyAvailable, actualPercentage) {
 async function boostTarget(ns, target) {
     ns.toast("Fixing " + target + " up for the plucking", "info")
     let host = ns.getServer()
+    let targetServer = ns.getServer(target)
 
     let timeToWeaken = ns.getWeakenTime(target)
     let timeToGrow = ns.getGrowTime(target)
     let longestWait = Math.max(timeToWeaken, timeToGrow)
 
-    let threadBudget = (host.maxRam - host.ramUsed) / growWeight;
+    let fudgeFactor = 0
+
+    // If we're running this locally let's leave a spot of room for other things
+    if(host.hostname == "home") {
+        fudgeFactor = 64
+    }
+
+    let threadBudget = (host.maxRam - host.ramUsed - fudgeFactor) / growWeight;
 
     ns.print("growWeight: " + growWeight)
     ns.print("threadBudget: " + threadBudget)
 
     let threadsGrow = Math.floor(threadBudget * 0.9)
-    let threadsWeaken = Math.floor(threadBudget * 0.1)
+    let threadsWeaken = threadBudget - threadsGrow
+
+    if(targetServer.hackDifficulty > targetServer.minDifficulty * 1.1) {
+        threadsWeaken = Math.floor(threadBudget * 0.9)
+        threadsGrow = threadBudget - threadsWeaken
+    }
 
     let growDelay = longestWait - timeToGrow + 5
     let weakenDelay = longestWait - timeToWeaken + 10

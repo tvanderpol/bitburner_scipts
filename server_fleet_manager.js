@@ -1,14 +1,15 @@
 /** @param {NS} ns **/
 
-export const MONEY_FMT = '($0.000a)'
-export const NUM_FMT = '0.000a'
+import NF from "util_number_formatter.js"
 
 export default class {
     constructor(ns, messenger) {
         this.ns = ns
+        this.nf = new NF(ns)
         this.messenger = messenger
         this.minRam = 64
-        this.maxPossibleRam = this.ns.getPurchasedServerMaxRam()
+        // this.maxPossibleRam = this.ns.getPurchasedServerMaxRam()
+        this.maxPossibleRam = 4096
         this.hostnames = this.generateHostNames()
     }
 
@@ -55,16 +56,18 @@ export default class {
     }
 
     findUpgradeInBudgetFor(currentRam, budget) {
-        let proposedPrice = 0
+        let proposedPrice = this.ns.getPurchasedServerCost(currentRam)
         let targetRam = currentRam
         let proposedTargetRam = currentRam
+        // this.ns.tprint("Going to loop, currentRam: " + currentRam + " budget: " + this.nf.money(budget))
+        // this.ns.tprint("targetRam: " + targetRam + ", proposedTargetRam: " + proposedTargetRam)
         while(proposedPrice < budget) {
             targetRam = proposedTargetRam
             if(targetRam === this.maxPossibleRam) {
                 break;
             }
             proposedTargetRam = Math.min(targetRam * 2, this.maxPossibleRam)
-            proposedPrice = this.ns.getPurchasedServerCost(targetRam)
+            proposedPrice = this.ns.getPurchasedServerCost(proposedTargetRam)
         }
 
         return targetRam;
@@ -92,7 +95,7 @@ export default class {
             targetRam = this.findUpgradeInBudgetFor(targetRam, budget)
         }
 
-        this.messenger.queue("Upgrading [" + hostname + "] from " + currentRam + "GB to " + targetRam + "GB", "success")
+        this.messenger.queue("Upgrading [" + hostname + "] from " + currentRam + "GB to " + targetRam + "GB for " + this.nf.money(this.ns.getPurchasedServerCost(targetRam)), "success")
         let boughtServer = this.buyServer(hostname, targetRam)
         if("" === boughtServer) {
             this.messenger.queue("Somehow failed to buy " + hostname + " :(", "error")
