@@ -110,14 +110,13 @@ export default class {
         let threadsWeakenCounterHack = this.findWeakenThreadsForImpact(hackSecurityImpact)
         let threadsWeakenCounterGrowth = this.findWeakenThreadsForImpact(growthSecurityImpact)
 
-        this.ns.tprint("this.longestWait - this.timeToHack: " + this.longestWait + this.timeToHack)
         let hackDelay = this.longestWait - this.timeToHack
         let growDelay = this.longestWait - this.timeToGrow
         let weakenDelay = this.longestWait - this.timeToWeaken
 
-        let totalRequiredThreads = threadsHack + threadsGrow + threadsWeaken * 2
+        let totalRequiredThreads = threadsHack + threadsWeakenCounterHack + threadsGrow + threadsWeakenCounterGrowth
 
-        if(this.threadCount < totalRequiredThreads) {
+        if (this.threadCount < totalRequiredThreads) {
             this.messenger.queue("Tried to schedule a pluck targeting " + this.targetHostname + " on too small a host - a gentle reminder to make this bit smarter.")
             // return this.boostJobs()
             return [

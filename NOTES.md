@@ -4,6 +4,7 @@
 
 - Buy Sector-12 augs
 - Travel to Australia(?) to get Tian Di Hui invite - get their augs to remove passive work penalty
+- Travel to South America, join Aevum, grab their PCMatrix Aug (quickstart, needs 100k faction)
 - Connect to `avmnite-02h` and backdoor to grab Nitesec's augs
 - Connect to `I.I.I.I` and backdoor to grab The Black Hand's augs
 - Connect to `run4theh111z` and backdoor to grab BitRunner's augs
