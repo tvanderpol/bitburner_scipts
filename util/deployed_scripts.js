@@ -1,4 +1,5 @@
 /** @param {NS} ns **/
+
 export default class {
   constructor(ns) {
     this.ns = ns
@@ -14,18 +15,18 @@ export default class {
     return this.hScript
   }
   get hackScriptRam() {
-    this.hScriptRam
+    return this.hScriptRam
   }
   get growScript() {
-    this.gScript
+    return this.gScript
   }
   get growScriptRam() {
-    this.gScriptRam
+    return this.gScriptRam
   }
   get weakenScript() {
-    this.wScript
+    return this.wScript
   }
   get weakenScriptRam() {
-    this.wScriptRam
+    return this.wScriptRam
   }
 }
