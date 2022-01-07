@@ -7,7 +7,7 @@ export default class {
     this.ns = ns;
     this.target = target;
     this.id = crypto.randomUUID();
-    this.log = new Logger(ns, `Job[${this.id}]`, true)
+    this.log = new Logger(ns, `Job[${this.id}]`, false)
     this.tasks = new Set();
     this.executeAfter = -1
     this.lastTaskFinished = null

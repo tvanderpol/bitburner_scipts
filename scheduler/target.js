@@ -6,7 +6,7 @@ export default class {
   constructor(ns, hostname) {
     this.ns = ns;
     this.hostname = hostname;
-    this.log = new Logger(ns, `Target[${hostname}]`, true)
+    this.log = new Logger(ns, `Target[${hostname}]`, false)
     this.details = this.ns.getServer(hostname);
     // needs to be long enough that whatever loop we run this in can validate the result 
     // before the next timeslot starts.

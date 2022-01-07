@@ -6,7 +6,7 @@ export default class {
   constructor(ns, hostname) {
     this.ns = ns;
     this.hostname = hostname;
-    this.log = new Logger(ns, `Host[${hostname}]`, true)
+    this.log = new Logger(ns, `Host[${hostname}]`, false)
     this.details = ns.getServer(hostname);
   }
 
