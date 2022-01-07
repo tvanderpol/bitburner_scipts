@@ -8,9 +8,6 @@ export default class {
     this.hostname = hostname;
     this.log = new Logger(ns, `Host[${hostname}]`, true)
     this.details = ns.getServer(hostname);
-    this.weakenTime = ns.getWeakenTime(hostname);
-    this.growTime = ns.getGrowTime(hostname);
-    this.hacktime = ns.getHackTime(hostname);
   }
 
   get name() {

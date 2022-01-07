@@ -8,11 +8,12 @@ export default class {
     this.hostname = hostname;
     this.log = new Logger(ns, `Target[${hostname}]`, true)
     this.details = this.ns.getServer(hostname);
-    this.longestWeakenTime = this.ns.getWeakenTime(hostname);
     // needs to be long enough that whatever loop we run this in can validate the result 
     // before the next timeslot starts.
     this.timeSliceMs = 100;
     this.reservations = new Map();
+    this.futureHackDifficulty = null;
+    this.futureHackDifficultyTimestamp;
   }
 
   get name() {
@@ -30,6 +31,31 @@ export default class {
   }
   get moneyMax() {
     return this.details.moneyMax;
+  }
+
+  updateDetails() {
+    this.details = this.ns.getServer(this.name);
+  }
+
+  get projectedHackDifficulty() {
+    if (this.futureHackDifficulty != null) {
+      this.log.dbg(`futureHackDifficulty() => [this.futureHackDifficultyTimestamp, this.futureHackDifficulty]: [${this.futureHackDifficultyTimestamp}, ${this.futureHackDifficulty}]`)
+      return [this.futureHackDifficultyTimestamp, this.futureHackDifficulty]
+    } else {
+      this.log.dbg(`No projected hack difficulty, returning current (${this.hackDifficulty})`)
+      return [-1, this.hackDifficulty]
+    }
+
+  }
+
+  updateHackDifficultyProjection(timestamp, level) {
+    this.log.info(`security level will be ${level} on ${timestamp}`)
+    this.futureHackDifficultyTimestamp = timestamp
+    this.futureHackDifficulty = level
+  }
+
+  setFutureMoneyMax(timestamp, moneyMax) {
+    this.log.info(`moneyMax on ${timestamp}: ${moneyMax}`)
   }
 
   reserveTimeslot(slot, jobId) {

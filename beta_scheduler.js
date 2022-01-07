@@ -7,17 +7,24 @@ import DeployedScripts from "util/deployed_scripts.js"
 import Logger from "util/logger.js"
 
 class Scheduler {
-    constructor(ns) {
+    constructor(ns, targetHostname) {
         this.ns = ns
         this.ds = new DeployedScripts(ns)
+        this.minimumRamOnHost = this.ds.weakenScriptRam + this.ds.growScriptRam
         this.log = new Logger(ns, "Scheduler", true)
         this.workpoolServers = ["home"]
-        this.targetHostname = "n00dles"
-        this.log.info("boo")
+        this.targetHostname = ""
+        this.log.info(`Scheduler started. WorkPool [${this.workpoolServers}] (min ram ${this.minimumRamOnHost}GB)`)
     }
 
     set target(hostname) {
+        this.log.info(`Target set to ${hostname}`)
         this.targetHostname = hostname
+        this.targetObject = new Target(this.ns, hostname)
+    }
+
+    get target() {
+        return this.targetObject
     }
 
     findWeakenThreadsForImpact(desiredSecurityImpact, coreCount) {
@@ -31,82 +38,144 @@ class Scheduler {
         return threadCount
     }
 
-    weakenTarget(securityGap, host, job) {
+    weakenTarget(target, host, job, projectedDifficulty, executeAfter) {
+        let securityGap = projectedDifficulty - target.minDifficulty
         let weakenThreadsRequired = this.findWeakenThreadsForImpact(securityGap, host.coreCount)
 
         let totalWeakenRam = this.ds.weakenScriptRam * weakenThreadsRequired
         this.log.dbg("securityGap: " + securityGap)
+        this.log.dbg("executeAfter: " + executeAfter)
+        this.log.dbg("projectedDifficulty: " + projectedDifficulty)
         this.log.dbg("this.ds.weakenScriptRam: " + this.ds.weakenScriptRam)
         this.log.dbg("weakenThreadsRequired: " + weakenThreadsRequired)
         this.log.dbg("totalWeakenRam: " + totalWeakenRam)
         this.log.dbg("availableRam: " + host.availableRam)
 
+        job.executeAfter = executeAfter
+
         if (totalWeakenRam <= host.availableRam) {
-            this.log.dbg("All weaken workload fits in RAM")
+            this.log.info("All weaken workload fits in RAM")
             job.addTask("weaken", this.ns.getWeakenTime(this.targetHostname), weakenThreadsRequired)
-            let remainingRam = host.availableRam - totalWeakenRam
-            this.log.dbg("Still have " + remainingRam + " left over")
+            return target.minDifficulty
         } else {
-            this.log.dbg("Can't do all the weakening in one hit - getting done what we can")
+            this.log.info("Can't do all the weakening in one hit - getting done what we can")
             let maxWeakenThreads = Math.floor(host.availableRam / this.ds.weakenScriptRam)
             job.addTask("weaken", this.ns.getWeakenTime(this.targetHostname), maxWeakenThreads)
+            return projectedDifficulty - (maxWeakenThreads * 0.05)
         }
     }
 
-    growTarget(moneyAvailable, moneyMax, host, job) {
-        this.log.dbg("moneyAvailable / moneyMax: " + (moneyAvailable / moneyMax))
+    growUsingRam(coreCount, availableRam) {
+        let proposedGrowthThreads = 1
+        let proposedWeakenThreads = 1
+        let proposedRamCost =
+            proposedGrowthThreads * this.ds.growScriptRam +
+            proposedWeakenThreads * this.ds.weakenScriptRam
 
+        if (proposedRamCost > availableRam) {
+            // We can't fit any useful workload, bail!
+            return [0, 0]
+        }
+
+        let maxAttempts = 0
+        let growthThreads, weakenThreads
+        while (proposedRamCost < availableRam && maxAttempts < 60) {
+            growthThreads = proposedGrowthThreads
+            weakenThreads = proposedWeakenThreads
+            proposedGrowthThreads += 1
+            proposedWeakenThreads = this.findWeakenThreadsForImpact(this.ns.growthAnalyzeSecurity(proposedGrowthThreads), coreCount)
+
+            proposedRamCost = proposedGrowthThreads * this.ds.growScriptRam + proposedWeakenThreads * this.ds.weakenScriptRam
+            // this.log.dbg(`Proposing growth[${proposedGrowthThreads}] / weaken[${proposedWeakenThreads}] (${proposedRamCost}GB)`)
+
+            maxAttempts += 1
+        }
+
+        return [weakenThreads, growthThreads]
+    }
+
+    growTarget(moneyAvailable, moneyMax, host, job) {
         this.log.dbg("moneyMax / moneyAvailable: " + (moneyMax / moneyAvailable))
         let desiredGrowthFactor = moneyMax / moneyAvailable
-
         let growThreadsRequired = Math.ceil(this.ns.growthAnalyze(this.targetHostname, desiredGrowthFactor, host.coreCount))
-        job.addTask("grow", this.ns.getGrowTime(this.targetHostname), growThreadsRequired)
-
         let weakenThreadsRequired = this.findWeakenThreadsForImpact(this.ns.growthAnalyzeSecurity(growThreadsRequired), host.coreCount)
-        job.addTask("weaken", this.ns.getWeakenTime(this.targetHostname), weakenThreadsRequired)
-
+        let totalRamRequired = growThreadsRequired * this.ds.growScriptRam + weakenThreadsRequired * this.ds.weakenScriptRam
         this.log.dbg(`growThreadsRequired: ${growThreadsRequired}`)
         this.log.dbg(`weakenThreadsRequired: ${weakenThreadsRequired}`)
+        this.log.dbg(`Total ram required: ${totalRamRequired}`)
+
+        if (totalRamRequired <= host.availableRam) {
+            this.log.info("All grow workload fits in RAM")
+            job.addTask("grow", this.ns.getGrowTime(this.targetHostname), growThreadsRequired)
+            job.addTask("weaken", this.ns.getWeakenTime(this.targetHostname), weakenThreadsRequired)
+            return true
+        } else {
+            this.log.info(`Can't do all grow calls in one go, splitting it (${host.availableRam.toFixed(3)}GB available)`)
+            let weakenThreads, growthThreads
+            [weakenThreads, growthThreads] = this.growUsingRam(host.coreCount, host.availableRam)
+            job.addTask("grow", this.ns.getGrowTime(this.targetHostname), growthThreads)
+            job.addTask("weaken", this.ns.getWeakenTime(this.targetHostname), weakenThreads)
+            return false
+        }
+
     }
 
     async run() {
+        this.target.updateDetails()
         for (const hostname of this.workpoolServers) {
             let host = new Host(this.ns, hostname)
-            let target = new Target(this.ns, this.targetHostname)
-            let job = new Job(this.ns, target)
+            if (host.availableRam < this.minimumRamOnHost) {
+                // this.log.dbg(`${hostname} has no useful ram available`)
+                return
+            } else {
+                this.log.info(`${hostname} has ${host.availableRam}GB to play with, let's go.`)
+            }
+            let job = new Job(this.ns, this.target)
 
-            let minSecurityLevel = target.minDifficulty
-            let currentSecurityLevel = target.hackDifficulty
-            let securityGap = currentSecurityLevel - minSecurityLevel
-
-            let moneyAvailable = target.moneyAvailable
-            let moneyMax = target.moneyMax
+            let moneyAvailable = this.target.moneyAvailable
+            let moneyMax = this.target.moneyMax
             this.log.dbg(`moneyAvailable: ${moneyAvailable} moneyMax: ${moneyMax}`)
 
-            if (securityGap > 0) {
-                this.weakenTarget(securityGap, host, job)
+            let futureHackDifficulty = this.target.hackDifficulty
+            let futureMoneyMax = (this.target.moneyAvailable === this.target.moneyMax)
+
+            let [projectedChangeTime, projectedHackDifficulty] = this.target.projectedHackDifficulty
+
+            this.log.dbg(`Checking if weaken is needed: projectedHackDifficulty > this.target.minDifficulty: ${projectedHackDifficulty} > ${this.target.minDifficulty}`)
+
+            if (projectedHackDifficulty > this.target.minDifficulty) {
+                futureHackDifficulty = this.weakenTarget(this.target, host, job, projectedHackDifficulty, projectedChangeTime)
             } else if (moneyAvailable < moneyMax) {
-                this.growTarget(moneyAvailable, moneyMax, host, job)
+                futureMoneyMax = this.growTarget(moneyAvailable, moneyMax, host, job)
             } else {
                 this.log.dbg(`Server is maximised, time to throw hacks at it`)
+                return true
             }
 
             let output = await job.scheduleOn(host)
+            this.log.dbg(`updateHackDifficultyProjection(job.finishTime, futureHackDifficulty): (updateHackDifficultyProjection(${job.finishTime}, ${futureHackDifficulty}))`)
+            this.target.updateHackDifficultyProjection(job.finishTime, futureHackDifficulty)
+            this.target.setFutureMoneyMax(job.finishTime, futureMoneyMax)
             this.log.dbg(`output from scheduleOn: ${output}`)
+            return false
         }
     }
 }
 
 
 export async function main(ns) {
+    ns.disableLog("ALL")
     let scheduler = new Scheduler(ns)
     // scheduler.target = "n00dles"
-    scheduler.target = "rho-construction"
+    scheduler.target = "foodnstuff"
 
-    // while (true) {
-    await scheduler.run()
-    //     await ns.sleep(50)
-    // }
+    let serverMaximised = false
+
+    while (!serverMaximised) {
+        serverMaximised = await scheduler.run()
+        // await ns.sleep(50)
+        await ns.sleep(1000)
+    }
 
 
 

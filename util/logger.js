@@ -27,6 +27,6 @@ export default class {
   }
 
   emit(lvl, msg) {
-    this.ns.tprint(`[${this.prefix}] ${lvl.toUpperCase()}: ${msg}`)
+    this.ns.print(`[${this.prefix}] ${lvl.toUpperCase()}: ${msg}`)
   }
 }
