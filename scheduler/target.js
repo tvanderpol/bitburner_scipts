@@ -40,12 +40,20 @@ export default class {
   get projectedHackDifficulty() {
     if (this.futureHackDifficulty != null) {
       this.log.dbg(`futureHackDifficulty() => [this.futureHackDifficultyTimestamp, this.futureHackDifficulty]: [${this.futureHackDifficultyTimestamp}, ${this.futureHackDifficulty}]`)
+      this.sanityCheckProjectedHackDifficulty()
       return [this.futureHackDifficultyTimestamp, this.futureHackDifficulty]
     } else {
       this.log.dbg(`No projected hack difficulty, returning current (${this.hackDifficulty})`)
       return [-1, this.hackDifficulty]
     }
+  }
 
+  sanityCheckProjectedHackDifficulty() {
+    if (this.ns.getTimeSinceLastAug() > this.futureHackDifficultyTimestamp) {
+      if (this.futureHackDifficulty != this.hackDifficulty) {
+        this.log.warn(`Hack difficulty projections are wrong! Expected this.futureHackDifficulty == this.hackDifficulty but ${this.futureHackDifficulty}  != ${this.hackDifficulty}`)
+      }
+    }
   }
 
   updateHackDifficultyProjection(timestamp, level) {

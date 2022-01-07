@@ -42,7 +42,7 @@ export default class {
   async scheduleOn(host) {
     if (this.tasks.size === 0) {
       this.log.dbg(`[${this.id}] No tasks to schedule`);
-      return;
+      return [];
     }
     // needs to calculate the earliest it can finish based on longest task
     let earliestPossibleFinish = this.ns.getTimeSinceLastAug() + this.longestRuntime();

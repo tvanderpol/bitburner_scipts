@@ -7,12 +7,12 @@ import DeployedScripts from "util/deployed_scripts.js"
 import Logger from "util/logger.js"
 
 class Scheduler {
-    constructor(ns, targetHostname) {
+    constructor(ns) {
         this.ns = ns
         this.ds = new DeployedScripts(ns)
         this.minimumRamOnHost = this.ds.weakenScriptRam + this.ds.growScriptRam
         this.log = new Logger(ns, "Scheduler", true)
-        this.workpoolServers = ["home"]
+        this.workpoolServers = ["home", "pserv-0"]
         this.targetHostname = ""
         this.log.info(`Scheduler started. WorkPool [${this.workpoolServers}] (min ram ${this.minimumRamOnHost}GB)`)
     }
@@ -25,6 +25,18 @@ class Scheduler {
 
     get target() {
         return this.targetObject
+    }
+
+    async prepareServers() {
+        for (const host of this.workpoolServers) {
+            if ("home" != host) { // We develop here, let's not get things confused.
+                let deployableFiles = this.ns.ls("home", "deploy/")
+                for (const file of deployableFiles) {
+                    this.log.dbg(`scp home:/${file} ${host}:/${file}`)
+                    await this.ns.scp(file, "home", host)
+                }
+            }
+        }
     }
 
     findWeakenThreadsForImpact(desiredSecurityImpact, coreCount) {
@@ -79,7 +91,9 @@ class Scheduler {
 
         let maxAttempts = 0
         let growthThreads, weakenThreads
-        while (proposedRamCost < availableRam && maxAttempts < 60) {
+        // TODO: some caching here, or some smarter way of finding the right amount of threads?
+        // while (proposedRamCost < availableRam && maxAttempts < 60) {
+        while (proposedRamCost < availableRam) {
             growthThreads = proposedGrowthThreads
             weakenThreads = proposedWeakenThreads
             proposedGrowthThreads += 1
@@ -105,12 +119,12 @@ class Scheduler {
         this.log.dbg(`Total ram required: ${totalRamRequired}`)
 
         if (totalRamRequired <= host.availableRam) {
-            this.log.info("All grow workload fits in RAM")
+            this.log.info(`[${host.name}] All grow workload fits in RAM`)
             job.addTask("grow", this.ns.getGrowTime(this.targetHostname), growThreadsRequired)
             job.addTask("weaken", this.ns.getWeakenTime(this.targetHostname), weakenThreadsRequired)
             return true
         } else {
-            this.log.info(`Can't do all grow calls in one go, splitting it (${host.availableRam.toFixed(3)}GB available)`)
+            this.log.info(`[${host.name}] Can't do all grow calls in one go, splitting it (${host.availableRam.toFixed(3)}GB available)`)
             let weakenThreads, growthThreads
             [weakenThreads, growthThreads] = this.growUsingRam(host.coreCount, host.availableRam)
             job.addTask("grow", this.ns.getGrowTime(this.targetHostname), growthThreads)
@@ -123,10 +137,11 @@ class Scheduler {
     async run() {
         this.target.updateDetails()
         for (const hostname of this.workpoolServers) {
+            this.log.info(`Checking schedule for ${hostname}`)
             let host = new Host(this.ns, hostname)
             if (host.availableRam < this.minimumRamOnHost) {
                 // this.log.dbg(`${hostname} has no useful ram available`)
-                return
+                continue
             } else {
                 this.log.info(`${hostname} has ${host.availableRam}GB to play with, let's go.`)
             }
@@ -149,15 +164,20 @@ class Scheduler {
                 futureMoneyMax = this.growTarget(moneyAvailable, moneyMax, host, job)
             } else {
                 this.log.dbg(`Server is maximised, time to throw hacks at it`)
-                return true
             }
 
             let output = await job.scheduleOn(host)
-            this.log.dbg(`updateHackDifficultyProjection(job.finishTime, futureHackDifficulty): (updateHackDifficultyProjection(${job.finishTime}, ${futureHackDifficulty}))`)
-            this.target.updateHackDifficultyProjection(job.finishTime, futureHackDifficulty)
+            if (output.length > 0 && -1 != output.findIndex(0)) {
+                this.log.warn(`One of the jobs failed to schedule for job[${job.id}]`)
+            }
+
+            if (futureHackDifficulty != this.target.hackDifficulty) {
+                this.log.info(`We're going to change hack difficulty in the future, changing projection.`)
+                this.log.dbg(`updateHackDifficultyProjection(job.finishTime, futureHackDifficulty): (updateHackDifficultyProjection(${job.finishTime}, ${futureHackDifficulty}))`)
+                this.target.updateHackDifficultyProjection(job.finishTime, futureHackDifficulty)
+            }
             this.target.setFutureMoneyMax(job.finishTime, futureMoneyMax)
             this.log.dbg(`output from scheduleOn: ${output}`)
-            return false
         }
     }
 }
@@ -168,6 +188,7 @@ export async function main(ns) {
     let scheduler = new Scheduler(ns)
     // scheduler.target = "n00dles"
     scheduler.target = "foodnstuff"
+    await scheduler.prepareServers()
 
     let serverMaximised = false
 

@@ -13,9 +13,7 @@ export default class {
   }
 
   info(msg) {
-    if (this.debug) {
-      this.emit("info", msg)
-    }
+    this.emit("info", msg)
   }
 
   warn(msg) {
