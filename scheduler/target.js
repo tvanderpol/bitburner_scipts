@@ -4,16 +4,19 @@ import Logger from "util/logger.js"
 
 export default class {
   constructor(ns, hostname) {
-    this.ns = ns;
-    this.hostname = hostname;
+    this.ns = ns
+    this.hostname = hostname
     this.log = new Logger(ns, `Target[${hostname}]`, false)
-    this.details = this.ns.getServer(hostname);
+    this.details = this.ns.getServer(hostname)
     // needs to be long enough that whatever loop we run this in can validate the result 
     // before the next timeslot starts.
-    this.timeSliceMs = 100;
-    this.reservations = new Map();
-    this.futureHackDifficulty = null;
-    this.futureHackDifficultyTimestamp;
+    this.timeSliceMs = 100
+    this.reservations = new Map()
+    this.futureHackDifficulty = null
+    this.futureHackDifficultyTimestamp
+    this.futureMoneyMaxed = this.currentMoneyMaxed
+    this.futureMoneyMaxedTimestamp = this.ns.getTimeSinceLastAug()
+
   }
 
   get name() {
@@ -33,6 +36,10 @@ export default class {
     return this.details.moneyMax;
   }
 
+  get currentMoneyMaxed() {
+    return this.moneyAvailable === this.moneyMax
+  }
+
   updateDetails() {
     this.details = this.ns.getServer(this.name);
   }
@@ -48,10 +55,34 @@ export default class {
     }
   }
 
+  get projectedMoneyMax() {
+    if (this.futureMoneyMaxed != null) {
+      this.log.dbg(`futureMoneyMaxed() => [this.futureMoneyMaxedTimestamp, this.futureMoneyMaxed]: [${this.futureMoneyMaxedTimestamp}, ${this.futureMoneyMaxed}]`)
+      this.sanityCheckProjectedMoneyMax()
+      return [this.futureMoneyMaxedTimestamp, this.futureMoneyMaxed]
+    } else {
+      this.log.dbg(`No projected moneyMaxed, returning current (${this.currentMoneyMaxed})`)
+      return [-1, this.currentMoneyMaxed]
+    }
+
+  }
+
+  sanityCheckProjectedMoneyMax() {
+    if (this.ns.getTimeSinceLastAug() > this.futureMoneyMaxedTimestamp) {
+      if (this.futureMoneyMaxed != this.currentMoneyMaxed) {
+        this.log.warn(`Money maxed projections are wrong! Expected this.futureMoneyMaxed = this.currentMoneyMaxed but ${this.futureMoneyMaxed}  != ${this.currentMoneyMaxed}`)
+        this.futureMoneyMaxed = this.currentMoneyMaxed
+        this.futureMoneyMaxedTimestamp = this.ns.getTimeSinceLastAug()
+      }
+    }
+  }
+
   sanityCheckProjectedHackDifficulty() {
     if (this.ns.getTimeSinceLastAug() > this.futureHackDifficultyTimestamp) {
       if (this.futureHackDifficulty != this.hackDifficulty) {
         this.log.warn(`Hack difficulty projections are wrong! Expected this.futureHackDifficulty == this.hackDifficulty but ${this.futureHackDifficulty}  != ${this.hackDifficulty}`)
+        this.futureHackDifficulty = this.hackDifficulty
+        this.futureHackDifficultyTimestamp = this.ns.getTimeSinceLastAug()
       }
     }
   }
@@ -64,6 +95,8 @@ export default class {
 
   setFutureMoneyMax(timestamp, moneyMax) {
     this.log.info(`moneyMax on ${timestamp}: ${moneyMax}`)
+    this.futureMoneyMaxedTimestamp = timestamp
+    this.futureMoneyMaxed = moneyMax
   }
 
   reserveTimeslot(slot, jobId) {

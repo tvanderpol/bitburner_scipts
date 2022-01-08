@@ -5,6 +5,8 @@ import Job from "scheduler/job.js"
 import Target from "scheduler/target.js"
 import DeployedScripts from "util/deployed_scripts.js"
 import Logger from "util/logger.js"
+import NetworkScanner from "network_scanner.js"
+import GlobalMessenger from "global_messenger.js"
 
 class Scheduler {
     constructor(ns) {
@@ -12,8 +14,15 @@ class Scheduler {
         this.ds = new DeployedScripts(ns)
         this.minimumRamOnHost = this.ds.weakenScriptRam + this.ds.growScriptRam
         this.log = new Logger(ns, "Scheduler", false)
-        // this.workpoolServers = ["home", "pserv-0"]
-        this.workpoolServers = ["home"].concat(this.ns.getPurchasedServers())
+
+        // TODO: This is really overmind's job: 
+        let messenger = new GlobalMessenger(ns, "BETA-SCHED")
+        let networkScanner = new NetworkScanner(ns, messenger)
+        networkScanner.mapServers()
+        this.workpoolServers = ["home"]
+            .concat(this.ns.getPurchasedServers())
+            .concat(networkScanner.allRootedServers.map(s => s.hostname))
+
         this.targetHostname = ""
         this.log.info(`Scheduler started. WorkPool [${this.workpoolServers}] (min ram ${this.minimumRamOnHost}GB)`)
     }
@@ -107,7 +116,7 @@ class Scheduler {
         return [weakenThreads, growthThreads]
     }
 
-    growTarget(moneyAvailable, moneyMax, host, job) {
+    growTarget(moneyAvailable, moneyMax, host, job, executeAfter) {
         this.log.dbg("moneyMax / moneyAvailable: " + (moneyMax / moneyAvailable))
         let desiredGrowthFactor = moneyMax / moneyAvailable
         let growThreadsRequired = Math.ceil(this.ns.growthAnalyze(this.targetHostname, desiredGrowthFactor, host.coreCount))
@@ -116,6 +125,8 @@ class Scheduler {
         this.log.dbg(`growThreadsRequired: ${growThreadsRequired}`)
         this.log.dbg(`weakenThreadsRequired: ${weakenThreadsRequired}`)
         this.log.dbg(`Total ram required: ${totalRamRequired}`)
+
+        job.executeAfter = executeAfter
 
         if (totalRamRequired <= host.availableRam) {
             this.log.info(`[${host.name}] All grow workload fits in RAM`)
@@ -151,12 +162,13 @@ class Scheduler {
     }
 
     hackTarget(target, host, job) {
-        // For now let's schedule to steal 1%. If that doesn't fit in the host RAM, let's just warn and move on.
-        let hackThreads = this.threadsToHack(target.name, 0.01)
+        // TODO: I really should find a better way to use the available ram here
+        // For now let's schedule to steal with a single thread
+        let hackThreads = 1
         let hackSecurityImpact = this.ns.hackAnalyzeSecurity(hackThreads)
         let weakenThreadsForHack = this.findWeakenThreadsForImpact(hackSecurityImpact, host.coreCount)
 
-        this.log.dbg(`Threads to hack 1%: ${hackThreads}`)
+        this.log.dbg(`Threads to hack with ${hackThreads} thread(s): ${hackThreads}`)
 
         let actualPercentage = hackThreads * this.ns.hackAnalyze(target.name)
         let growthFactor = this.calculateGrowthFactor(target.moneyMax, target.moneyAvailable, actualPercentage)
@@ -167,7 +179,7 @@ class Scheduler {
         let totalRamNeeded = this.ramRequiredFor(growthThreads, weakenThreadsForHack + weakenThreadsForGrow, hackThreads)
 
         if (host.availableRam < totalRamNeeded) {
-            this.log.info(`Host ${host.name} doesn't have the free ${totalRamNeeded}GB ram for a 1% pluck on ${target.name}, skipping for now.`)
+            this.log.info(`Host ${host.name} doesn't have the free ${totalRamNeeded}GB ram for a ${hackThreads} thread(s) on ${target.name}, skipping for now.`)
         } else {
             job.addTask("hack", this.ns.getHackTime(target.name), hackThreads)
             job.addTask("weaken", this.ns.getWeakenTime(target.name), weakenThreadsForHack)
@@ -179,13 +191,12 @@ class Scheduler {
     async run() {
         this.target.updateDetails()
         for (const hostname of this.workpoolServers) {
-            this.log.info(`Checking schedule for ${hostname}`)
+            this.log.dbg(`Checking schedule for ${hostname}`)
             let host = new Host(this.ns, hostname)
             if (host.availableRam < this.minimumRamOnHost) {
-                // this.log.dbg(`${hostname} has no useful ram available`)
                 continue
             } else {
-                this.log.info(`${hostname} has ${host.availableRam}GB to play with, let's go.`)
+                this.log.dbg(`${hostname} has ${host.availableRam}GB to play with, let's go.`)
             }
             let job = new Job(this.ns, this.target)
 
@@ -196,14 +207,15 @@ class Scheduler {
             let futureHackDifficulty = this.target.hackDifficulty
             let futureMoneyMax = (this.target.moneyAvailable === this.target.moneyMax)
 
-            let [projectedChangeTime, projectedHackDifficulty] = this.target.projectedHackDifficulty
+            let [projectedHackDifficultyChangeTime, projectedHackDifficulty] = this.target.projectedHackDifficulty
+            let [projectedMaxMoneyChangeTime, projectedMoneyMax] = this.target.projectedMoneyMax
 
             this.log.dbg(`Checking if weaken is needed: projectedHackDifficulty > this.target.minDifficulty: ${projectedHackDifficulty} > ${this.target.minDifficulty}`)
 
             if (projectedHackDifficulty > this.target.minDifficulty) {
-                futureHackDifficulty = this.weakenTarget(this.target, host, job, projectedHackDifficulty, projectedChangeTime)
-            } else if (moneyAvailable < moneyMax) {
-                futureMoneyMax = this.growTarget(moneyAvailable, moneyMax, host, job)
+                futureHackDifficulty = this.weakenTarget(this.target, host, job, projectedHackDifficulty, projectedHackDifficultyChangeTime)
+            } else if (!projectedMoneyMax) {
+                futureMoneyMax = this.growTarget(moneyAvailable, moneyMax, host, job, projectedMaxMoneyChangeTime)
             } else {
                 this.log.dbg(`Server is maximised, time to throw hacks at it`)
                 futureMoneyMax = true
@@ -233,25 +245,20 @@ class Scheduler {
 export async function main(ns) {
     ns.disableLog("ALL")
     let scheduler = new Scheduler(ns)
-    // scheduler.target = "n00dles"
     scheduler.target = "omega-net"
+    // scheduler.target = "omega-net"
     await scheduler.prepareServers()
 
     let serverMaximised = false
 
     while (!serverMaximised) {
         serverMaximised = await scheduler.run()
-        // await ns.sleep(50)
-        await ns.sleep(1000)
+
+        let currentTime = ns.getTimeSinceLastAug()
+
+        // Run scheduler in the latter half of the second, first 500ms is for running tasks
+        let nextFullSecond = (Math.ceil(currentTime / 1000) * 1000) + 500
+        await ns.sleep(nextFullSecond - currentTime)
+
     }
-
-
-
-    // this thing has a port open to listen to job return values
-
-    // If security < min, blast it until min
-    // grow to 100% with enough weaken to counteract
-    // hack as a nice manageable package of threads - small group that can be scheduled multiple times on the same host (due to job id)
-
-    // Each job scheduled gets given an ID, will report back on complete
 }

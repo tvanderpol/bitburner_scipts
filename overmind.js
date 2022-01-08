@@ -31,7 +31,7 @@ export async function main(ns) {
 
         networkScanner.mapServers()
         let inaccessibleHosts = networkScanner.breachAll()
-        if(inaccessibleHosts > 0) {
+        if (inaccessibleHosts > 0) {
             messenger.queue("Can't root " + inaccessibleHosts + " servers yet", "warning")
         }
 

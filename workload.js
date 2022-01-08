@@ -120,7 +120,7 @@ export default class {
             this.messenger.queue("Tried to schedule a pluck targeting " + this.targetHostname + " on too small a host - a gentle reminder to make this bit smarter.")
             // return this.boostJobs()
             return [
-                this.newJob(this.hackScript, this.threadCount, 0),
+                this.newJob(this.weakenScript, this.threadCount, 0),
             ]
         } else {
             return [

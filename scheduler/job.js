@@ -24,7 +24,7 @@ export default class {
   }
 
   addTask(task, runTime, threadCount) {
-    this.log.info(`Adding job [task, runTime, threadCount]: ${[task, runTime, threadCount]}`)
+    this.log.dbg(`Adding job [task, runTime, threadCount]: ${[task, runTime, threadCount]}`)
     if (threadCount > 0) {
       this.tasks.add(new Map([
         ["task", task],
