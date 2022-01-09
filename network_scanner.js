@@ -48,7 +48,6 @@ export default class {
             return this.serverList.get(hostname)
         } else {
             this.serverList.set(hostname, { hostname: hostname, parent: parent, explored: explored })
-            //this.ns.tprint("Adding " + hostname + " to serverList")
             return this.serverList.get(hostname)
         }
     }
@@ -116,13 +115,13 @@ export default class {
     }
 
     findPath(hostname) {
-        this.mapServers()       
+        this.mapServers()
         if (this.serverList.has(hostname)) {
             let serverEntry = this.serverList.get(hostname)
             let nodePath = [serverEntry.parent.hostname, serverEntry.hostname]
             let parent = serverEntry.parent
             let depth = 0
-            while(parent.hostname != "home" || depth > 20) {
+            while (parent.hostname != "home" || depth > 20) {
                 depth += 1
                 parent = parent.parent
                 nodePath.unshift(parent.hostname)

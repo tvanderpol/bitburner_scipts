@@ -94,7 +94,7 @@ export default class {
   }
 
   setFutureMoneyMax(timestamp, moneyMax) {
-    this.log.info(`moneyMax on ${timestamp}: ${moneyMax}`)
+    this.log.dbg(`moneyMax on ${timestamp}: ${moneyMax}`)
     this.futureMoneyMaxedTimestamp = timestamp
     this.futureMoneyMaxed = moneyMax
   }

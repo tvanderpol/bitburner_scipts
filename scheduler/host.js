@@ -18,7 +18,15 @@ export default class {
     return this.details.coreCount;
   }
 
+  get maxRam() {
+    return this.details.maxRam
+  }
+
   get availableRam() {
     return this.details.maxRam - this.details.ramUsed;
+  }
+
+  updateDetails() {
+    this.details = this.ns.getServer(this.name);
   }
 }

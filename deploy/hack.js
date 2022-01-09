@@ -12,5 +12,5 @@ export async function main(ns) {
 
   await ns.sleep(desiredSleep)
   let response = await ns.hack(target);
-  ns.tprint(`[${jobId}] (slept ${desiredSleep.toFixed(2)}) hack complete on ${target}: ${response}`)
+  // ns.tprint(`[${jobId}] (slept ${desiredSleep.toFixed(2)}) hack complete on ${target}: ${response}`)
 }

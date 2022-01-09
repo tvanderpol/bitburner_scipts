@@ -2,7 +2,7 @@
 
 // import * as util from "utils.js"
 import ServerFleetManager from "server_fleet_manager.js"
-import WorkloadManager from "workload_manager.js"
+import Scheduler from "scheduler/scheduler.js"
 import ToolsManager from "tools_manager.js"
 import NetworkScanner from "network_scanner.js"
 import GlobalMessenger from "global_messenger.js"
@@ -13,12 +13,10 @@ export async function main(ns) {
     ns.disableLog("ALL")
     let messenger = new GlobalMessenger(ns, "OVERMIND")
     let serverFleetManager = new ServerFleetManager(ns, messenger)
-    let workloadManager = new WorkloadManager(ns, messenger)
+    let scheduler = new Scheduler(ns, messenger)
     let toolsManager = new ToolsManager(ns)
     let networkScanner = new NetworkScanner(ns, messenger)
     let nf = new NF(ns)
-
-    workloadManager.clearSlate()
 
     while (true) {
         // TODO: manage hacknet buying
@@ -35,7 +33,12 @@ export async function main(ns) {
             messenger.queue("Can't root " + inaccessibleHosts + " servers yet", "warning")
         }
 
-        workloadManager.botnet = networkScanner.allRootedServers
+        // TODO: I still don't understand why newly bought private servers don't show up in this
+        // For now I'm tired so brute forcing it.
+        let allRootedServers = networkScanner.allRootedServers.map(s => s.hostname)
+        let purchasedServers = ns.getPurchasedServers()
+        let allServers = new Set(allRootedServers.concat(purchasedServers))
+        scheduler.workpoolServers = [...allServers].map(s => ns.getServer(s))
 
         if (serverFleetManager.upgradesRemaining()) {
             let nextFleetUpgradeCost = serverFleetManager.nextUpgradeCost()
@@ -50,12 +53,16 @@ export async function main(ns) {
 
         let hackTargets = networkScanner.currentTargetList()
         // ns.tprint("hacktargets: " + hackTargets.map(s => s.hostname))
-        workloadManager.targetList = hackTargets
-
-        await workloadManager.plan()
+        scheduler.updateTargetList(hackTargets)
 
         messenger.emit()
 
-        await ns.sleep(1000)
+        await scheduler.run()
+
+        let currentTime = ns.getTimeSinceLastAug()
+
+        // Run scheduler in the latter half of the second, first 500ms is for running tasks
+        let nextFullSecond = (Math.ceil(currentTime / 1000) * 1000) + 500
+        await ns.sleep(nextFullSecond - currentTime)
     }
 }
