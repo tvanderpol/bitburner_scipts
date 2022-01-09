@@ -44,7 +44,13 @@ export default class {
     let newBalance = moneyAvailable - (moneyAvailable * actualPercentage);
 
     // newBalance * factor = moneyMax
-    return moneyMax / newBalance;
+    let growthFactor = moneyMax / newBalance
+
+    if (growthFactor === Infinity) {
+      // Whoops we overdid it earlier by accident
+      growthFactor = 100
+    }
+    return growthFactor;
   }
 
   findWeakenThreadsForImpact(desiredSecurityImpact, coreCount) {

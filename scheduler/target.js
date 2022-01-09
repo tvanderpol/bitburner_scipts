@@ -23,15 +23,26 @@ export default class {
     return this.hostname;
   }
 
+  get finishedWeakening() {
+    return (this.minDifficulty === this.hackDifficulty)
+  }
+
+  get availableMoneyPercentage() {
+    return this.moneyAvailable / this.moneyMax
+  }
+
   get minDifficulty() {
     return this.details.minDifficulty;
   }
+
   get hackDifficulty() {
     return this.details.hackDifficulty;
   }
+
   get moneyAvailable() {
     return this.details.moneyAvailable;
   }
+
   get moneyMax() {
     return this.details.moneyMax;
   }

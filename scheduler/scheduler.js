@@ -19,7 +19,9 @@ export default class {
 
     this.targetHostname = ""
     this.targetObject = null
-    this.log.info(`Scheduler started. WorkPool [${this.workpoolServers}] (min ram ${this.minimumRamOnHost}GB)`);
+    this.nextTargetHostname = ""
+    this.nextTargetObject = null
+    this.log.info(`Started. WorkPool [${this.workpoolServers}] (min ram ${this.minimumRamOnHost}GB)`);
   }
 
   set workpoolServers(serverList) {
@@ -33,20 +35,75 @@ export default class {
   }
 
   updateTargetList(list) {
-    if (this.targetList.length < 1) {
-      this.target = list[0].hostname
-    }
     this.targetList = list
   }
 
   set target(hostname) {
-    this.messenger.queue(`Scheduler Target set to ${hostname}`, "success");
-    this.targetHostname = hostname;
-    this.targetObject = new Target(this.ns, hostname);
+    if (this.targetHostname != hostname && hostname != undefined) {
+      this.ns.tprint(`Overmind turns its gaze to ${hostname}`)
+      this.messenger.queue(`Target set to ${hostname}`, "success");
+      this.targetHostname = hostname;
+      this.targetObject = new Target(this.ns, hostname);
+    }
+  }
+
+  set nextTarget(hostname) {
+    if (this.nextTargetHostname != hostname && hostname != undefined) {
+      this.ns.tprint(`Overmind considers ${hostname} to be next`)
+      this.messenger.queue(`nextTarget set to ${hostname}`, "success");
+      this.nextTargetHostname = hostname;
+      this.nextTargetObject = new Target(this.ns, hostname);
+    }
   }
 
   get target() {
     return this.targetObject;
+  }
+
+  get nextTarget() {
+    return this.nextTargetObject;
+  }
+
+  findBestTargetThatIsNotTargetted() {
+    return this.targetList
+      .map(t => t.name)
+      .find(s => s != this.targetHostname && s != this.nextTargetHostname)
+  }
+
+  findTargetRank(hostname) {
+    return this.targetList.findIndex(h => h.hostname === hostname)
+  }
+
+  reconsiderTargets() {
+    if (this.target === null || this.target === undefined) {
+      this.target = this.targetList[0].hostname
+      this.nextTarget = this.targetList[1].hostname
+      this.messenger.queue(`No target set yet, targetting ${this.targetList[0].hostname} and ${this.targetList[1].hostname}`)
+    } else {
+      let targetIdx = this.findTargetRank(this.target)
+      let nextTargetIdx = this.findTargetRank(this.nextTarget)
+
+      if (nextTargetIdx < targetIdx) {
+        if (this.nextTarget.finishedWeakening) {
+          this.messenger.queue(`${this.nextTarget.hostname} finished weakening, switching to it`)
+          this.target = this.nextTarget.hostname
+          this.nextTarget = this.findBestTargetThatIsNotTargetted()
+        } else {
+          let bestTarget = this.findBestTargetThatIsNotTargetted()
+          if (bestTarget != this.target && bestTarget != this.nextTarget) {
+            let bestTargetIdx = this.findTargetRank(bestTarget)
+            let targetIdx = this.findTargetRank(this.target)
+            let nextTargetIdx = this.findTargetRank(this.nextTarget)
+            if (-1 != bestTargetIdx && bestTargetIdx < targetIdx && bestTargetIdx < nextTargetIdx) {
+              this.log.dbg(`Current best target ${bestTarget.hostname} isn't targetted yet`)
+              if (this.nextTarget.minDifficulty / this.nextTarget.hackDifficulty < 0.5) {
+                this.nextTarget = bestTarget.hostname
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   async prepareServers() {
@@ -142,6 +199,10 @@ export default class {
   growTarget(moneyAvailable, moneyMax, host, job, executeAfter) {
     this.log.dbg("moneyMax / moneyAvailable: " + (moneyMax / moneyAvailable));
     let desiredGrowthFactor = moneyMax / moneyAvailable;
+    if (desiredGrowthFactor === Infinity) {
+      // Whoops we overdid it earlier by accident
+      desiredGrowthFactor = 100
+    }
     let growThreadsRequired = Math.ceil(this.ns.growthAnalyze(this.targetHostname, desiredGrowthFactor, host.coreCount));
     let weakenThreadsRequired = this.findWeakenThreadsForImpact(this.ns.growthAnalyzeSecurity(growThreadsRequired), host.coreCount);
     let totalRamRequired = this.ramRequiredFor(growThreadsRequired, weakenThreadsRequired);
@@ -191,49 +252,63 @@ export default class {
     let memBudget = host.availableRam
     let hackCost = this.hackOptimiser.findOptimumHackForMemory(target, host.cpuCores, memBudget, 1, maxThreads)
 
-    if (hackCost.get("totalRamNeeded") >= memBudget) {
-      this.log.info(`Can't fit any hack workload onto ${host.name}`)
-    } else {
+    if (hackCost.get("totalRamNeeded") < memBudget) {
       job.addTask("hack", this.ns.getHackTime(target.name), hackCost.get("hackThreads"));
       job.addTask("weaken", this.ns.getWeakenTime(target.name), hackCost.get("weakenThreadsForHack"));
       job.addTask("grow", this.ns.getGrowTime(target.name), hackCost.get("growthThreads"));
       job.addTask("weaken", this.ns.getWeakenTime(target.name), hackCost.get("weakenThreadsForGrow"));
+    } else {
+      // TODO: Throw this into weaking nextTarget
     }
   }
 
   async run() {
-    this.target.updateDetails();
+    this.reconsiderTargets()
+    if (this.target === null || this.target === undefined) {
+      this.ns.tprint("ERROR BEEP BOOP NO TARGET!!")
+    }
+    this.target.updateDetails()
     await this.prepareServers()
+
     for (let host of this.workpoolServers) {
       this.log.dbg(`Checking schedule for ${host.name}`);
       host.updateDetails()
       if (host.availableRam < this.minimumRamOnHost) {
-        continue;
+        continue
+      } else if ((host.availableRam / host.maxRam) < 0.8) {
+        // Let's not schedule a million tiny jobs, wait until we have at least a chunk of memory available
+        continue
       } else {
         this.log.dbg(`${host.name} has ${host.availableRam}GB to play with, let's go.`);
       }
-      let job = new Job(this.ns, this.target);
 
-      let moneyAvailable = this.target.moneyAvailable;
-      let moneyMax = this.target.moneyMax;
+      let target = this.target
+      if (!this.nextTarget.finishedWeakening && Math.random() > 0.9) {
+        target = this.nextTarget
+        this.log.info(`[${host.name}] Getting a head start on our next target - ${target.name}`)
+      }
+      let job = new Job(this.ns, target);
+
+      let moneyAvailable = target.moneyAvailable;
+      let moneyMax = target.moneyMax;
       this.log.dbg(`moneyAvailable: ${moneyAvailable} moneyMax: ${moneyMax}`);
 
-      let futureHackDifficulty = this.target.hackDifficulty;
-      let futureMoneyMax = (this.target.moneyAvailable === this.target.moneyMax);
+      let futureHackDifficulty = target.hackDifficulty;
+      let futureMoneyMax = (target.moneyAvailable === target.moneyMax);
 
-      let [projectedHackDifficultyChangeTime, projectedHackDifficulty] = this.target.projectedHackDifficulty;
-      let [projectedMaxMoneyChangeTime, projectedMoneyMax] = this.target.projectedMoneyMax;
+      let [projectedHackDifficultyChangeTime, projectedHackDifficulty] = target.projectedHackDifficulty;
+      let [projectedMaxMoneyChangeTime, projectedMoneyMax] = target.projectedMoneyMax;
 
-      this.log.dbg(`Checking if weaken is needed: projectedHackDifficulty > this.target.minDifficulty: ${projectedHackDifficulty} > ${this.target.minDifficulty}`);
+      this.log.dbg(`Checking if weaken is needed: projectedHackDifficulty > target.minDifficulty: ${projectedHackDifficulty} > ${target.minDifficulty}`);
 
-      if (projectedHackDifficulty > this.target.minDifficulty) {
-        futureHackDifficulty = this.weakenTarget(this.target, host, job, projectedHackDifficulty, projectedHackDifficultyChangeTime);
+      if (projectedHackDifficulty > target.minDifficulty) {
+        futureHackDifficulty = this.weakenTarget(target, host, job, projectedHackDifficulty, projectedHackDifficultyChangeTime);
       } else if (!projectedMoneyMax) {
         futureMoneyMax = this.growTarget(moneyAvailable, moneyMax, host, job, projectedMaxMoneyChangeTime);
       } else {
         this.log.dbg(`Server is maximised, time to throw hacks at it`);
         futureMoneyMax = true;
-        this.hackTarget(this.target, host, job);
+        this.hackTarget(target, host, job);
       }
 
       let output = await job.scheduleOn(host);
@@ -243,13 +318,13 @@ export default class {
         this.log.dbg(`output from scheduleOn: ${output}`);
       }
 
-      if (futureHackDifficulty != this.target.hackDifficulty) {
+      if (futureHackDifficulty != target.hackDifficulty) {
         this.log.info(`We're going to change hack difficulty in the future, changing projection.`);
         this.log.dbg(`updateHackDifficultyProjection(job.finishTime, futureHackDifficulty): (updateHackDifficultyProjection(${job.finishTime}, ${futureHackDifficulty}))`);
-        this.target.updateHackDifficultyProjection(job.finishTime, futureHackDifficulty);
+        target.updateHackDifficultyProjection(job.finishTime, futureHackDifficulty);
       }
-      if (!(this.target.moneyAvailable == this.target.moneyMax) && futureMoneyMax) {
-        this.target.setFutureMoneyMax(job.finishTime, futureMoneyMax);
+      if (!(target.moneyAvailable == target.moneyMax) && futureMoneyMax) {
+        target.setFutureMoneyMax(job.finishTime, futureMoneyMax);
       }
     }
   }
