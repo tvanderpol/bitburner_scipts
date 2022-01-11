@@ -1,3 +1,5 @@
+import Target from "scheduler/target.js"
+
 /** @param {NS} ns **/
 export default class {
     constructor(ns, messenger) {
@@ -26,13 +28,18 @@ export default class {
 
     currentTargetList(targetCount = 15) {
         return this.allServerHostnames
-            .map(s => this.ns.getServer(s))
-            .filter(s => s.requiredHackingSkill <= this.ns.getHackingLevel())
-            .filter(s => !s.purchasedByPlayer)
-            .filter(s => s.hasAdminRights)
-            // TODO: This needs a null case guard when restarting fresh
-            // .filter(s => this.meetsTimeFactor(s))
-            .sort((a, b) => this.scoreServer(b) - this.scoreServer(a))
+            .map(s => new Target(this.ns, s))
+            .filter(t => t.isValidTarget)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, targetCount)
+    }
+
+    minSecurityTargetList(targetCount = 5) {
+        return this.allServerHostnames
+            .map(s => new Target(this.ns, s))
+            .filter(t => t.isValidTarget)
+            .filter(t => t.finishedWeakening)
+            .sort((a, b) => { this.ns.tprint(`comparing ${a.hostname}[${a.score}] to ${b.hostname}[${b.score}] for`); b.score - a.score })
             .slice(0, targetCount)
     }
 
@@ -66,12 +73,6 @@ export default class {
                 target["explored"] = true
             }
         }
-    }
-
-    scoreServer(s) {
-        let rewardRatio = s.moneyMax / s.minDifficulty
-
-        return rewardRatio
     }
 
     breach(hostname) {

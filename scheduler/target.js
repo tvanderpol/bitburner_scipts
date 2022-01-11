@@ -23,6 +23,12 @@ export default class {
     return this.hostname;
   }
 
+  get isValidTarget() {
+    return this.details.requiredHackingSkill <= this.ns.getHackingLevel() &&
+      !this.details.purchasedByPlayer &&
+      this.details.hasAdminRights
+  }
+
   get finishedWeakening() {
     return (this.minDifficulty === this.hackDifficulty)
   }
@@ -39,6 +45,10 @@ export default class {
     return this.details.hackDifficulty;
   }
 
+  get requiredHackingSkill() {
+    return this.details.requiredHackingSkill
+  }
+
   get moneyAvailable() {
     return this.details.moneyAvailable;
   }
@@ -49,6 +59,12 @@ export default class {
 
   get currentMoneyMaxed() {
     return this.moneyAvailable === this.moneyMax
+  }
+
+  get score() {
+    let rewardRatio = this.moneyMax / this.minDifficulty
+
+    return rewardRatio
   }
 
   updateDetails() {
