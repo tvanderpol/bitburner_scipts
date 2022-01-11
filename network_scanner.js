@@ -26,7 +26,7 @@ export default class {
         return weakenTime / this.ns.getTimeSinceLastAug() < this.timeFactor
     }
 
-    currentTargetList(targetCount = 15) {
+    currentTargetList(targetCount = 5) {
         return this.allServerHostnames
             .map(s => new Target(this.ns, s))
             .filter(t => t.isValidTarget)
@@ -39,7 +39,7 @@ export default class {
             .map(s => new Target(this.ns, s))
             .filter(t => t.isValidTarget)
             .filter(t => t.finishedWeakening)
-            .sort((a, b) => { this.ns.tprint(`comparing ${a.hostname}[${a.score}] to ${b.hostname}[${b.score}] for`); b.score - a.score })
+            .sort((a, b) => b.score - a.score)
             .slice(0, targetCount)
     }
 

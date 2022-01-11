@@ -8,6 +8,7 @@ export default class {
     this.hostname = hostname;
     this.log = new Logger(ns, `Host[${hostname}]`, false)
     this.details = ns.getServer(hostname);
+    this.minRamOnHome = 32
   }
 
   get name() {
@@ -23,7 +24,11 @@ export default class {
   }
 
   get availableRam() {
-    return this.details.maxRam - this.details.ramUsed;
+    let availableRam = this.details.maxRam - this.details.ramUsed
+    if (this.hostname === "home") {
+      availableRam -= this.minRamOnHome
+    }
+    return availableRam;
   }
 
   updateDetails() {

@@ -6,9 +6,10 @@ import DeployedScripts from "util/deployed_scripts.js";
 import Logger from "util/logger.js";
 
 export default class {
-  constructor(ns, messenger) {
+  constructor(ns, messenger, networkScanner) {
     this.ns = ns;
     this.messenger = messenger
+    this.networkScanner = networkScanner
     this.ds = new DeployedScripts(ns);
     this.hackOptimiser = new HackOptimiser(ns, messenger)
     this.minimumRamOnHost = this.ds.weakenScriptRam + this.ds.growScriptRam;
@@ -21,7 +22,8 @@ export default class {
     this.targetObject = null
     this.nextTargetHostname = ""
     this.nextTargetObject = null
-    this.log.info(`Started. WorkPool [${this.workpoolServers}] (min ram ${this.minimumRamOnHost}GB)`);
+
+    this.log.info(`Started. Minimum hostRam ${this.minimumRamOnHost}GB`);
   }
 
   set workpoolServers(serverList) {
@@ -34,10 +36,6 @@ export default class {
     return this.workpoolHosts
   }
 
-  updateTargetList(list) {
-    this.targetList = list
-  }
-
   set target(hostname) {
     if (this.targetHostname != hostname && hostname != undefined) {
       this.ns.tprint(`Overmind turns its gaze to ${hostname}`)
@@ -48,7 +46,10 @@ export default class {
   }
 
   set nextTarget(hostname) {
-    if (this.nextTargetHostname != hostname && hostname != undefined) {
+    if (hostname === null) {
+      this.nextTargetHostname = null;
+      this.nextTargetObject = null
+    } else if (this.nextTargetHostname != hostname && hostname != undefined) {
       this.ns.tprint(`Overmind considers ${hostname} to be next`)
       this.messenger.queue(`nextTarget set to ${hostname}`, "success");
       this.nextTargetHostname = hostname;
@@ -64,45 +65,33 @@ export default class {
     return this.nextTargetObject;
   }
 
-  findBestTargetThatIsNotTargetted() {
-    return this.targetList
-      .map(t => t.name)
-      .find(s => s != this.targetHostname && s != this.nextTargetHostname)
-  }
-
-  findTargetRank(hostname) {
-    return this.targetList.findIndex(h => h.hostname === hostname)
-  }
-
   reconsiderTargets() {
-    if (this.target === null || this.target === undefined) {
-      this.target = this.targetList[0].hostname
-      this.nextTarget = this.targetList[1].hostname
-      this.messenger.queue(`No target set yet, targetting ${this.targetList[0].hostname} and ${this.targetList[1].hostname}`)
-    } else {
-      let targetIdx = this.findTargetRank(this.target)
-      let nextTargetIdx = this.findTargetRank(this.nextTarget)
+    if (this.networkScanner.minSecurityTargetList().length < 1 || this.networkScanner.currentTargetList().length < 1) {
+      return
+    }
 
-      if (nextTargetIdx < targetIdx) {
-        if (this.nextTarget.finishedWeakening) {
-          this.messenger.queue(`${this.nextTarget.hostname} finished weakening, switching to it`)
-          this.target = this.nextTarget.hostname
-          this.nextTarget = this.findBestTargetThatIsNotTargetted()
-        } else {
-          let bestTarget = this.findBestTargetThatIsNotTargetted()
-          if (bestTarget != this.target && bestTarget != this.nextTarget) {
-            let bestTargetIdx = this.findTargetRank(bestTarget)
-            let targetIdx = this.findTargetRank(this.target)
-            let nextTargetIdx = this.findTargetRank(this.nextTarget)
-            if (-1 != bestTargetIdx && bestTargetIdx < targetIdx && bestTargetIdx < nextTargetIdx) {
-              this.log.dbg(`Current best target ${bestTarget.hostname} isn't targetted yet`)
-              if (this.nextTarget.minDifficulty / this.nextTarget.hackDifficulty < 0.5) {
-                this.nextTarget = bestTarget.hostname
-              }
-            }
-          }
-        }
+    let topMinSecurityTarget = this.networkScanner.minSecurityTargetList()[0]
+    let topGlobalTarget = this.networkScanner.currentTargetList()[0]
+    if (this.target === null || this.target === undefined) {
+      this.target = topMinSecurityTarget.name
+    }
+    if (this.target.name != topMinSecurityTarget.name && this.target.score < topMinSecurityTarget.score) {
+      this.log.info(`${topMinSecurityTarget.name} has minimum security and is better, switching`)
+      this.target = topMinSecurityTarget.name
+    }
+    if (this.target.name != topGlobalTarget.name && this.target.score < topGlobalTarget.score) {
+      if (this.nextTarget === null || (this.nextTarget.name != topGlobalTarget.name && this.nextTarget.score < topGlobalTarget.score)) {
+        this.log.info(`Current nextTarget is not the juiciest anymore, ${topGlobalTarget.name} is`)
+        this.nextTarget = topGlobalTarget.name
       }
+    }
+    if (this.nextTarget != null && this.target.score > this.nextTarget.score) {
+      this.log.info(`[Target: ${this.target.name}, nextTarget: ${this.nextTarget.name}]We've somehow lapped our nextTarget, let's not waste cycles on it`)
+      this.nextTarget = null
+    }
+    if (this.target != null && this.nextTarget != null && this.target.name == this.nextTarget.name) {
+      this.log.info(`[Target: ${this.target.name}, nextTarget: ${this.nextTarget.name}] Target and nextTarget are identical, clearing nextTarget as it adds no value`)
+      this.nextTarget = null
     }
   }
 
@@ -283,7 +272,7 @@ export default class {
       }
 
       let target = this.target
-      if (!this.nextTarget.finishedWeakening && Math.random() > 0.9) {
+      if (this.nextTarget != null && !this.nextTarget.finishedWeakening && Math.random() > 0.9) {
         target = this.nextTarget
         this.log.info(`[${host.name}] Getting a head start on our next target - ${target.name}`)
       }

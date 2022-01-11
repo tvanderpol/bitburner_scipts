@@ -4,18 +4,19 @@
 import ServerFleetManager from "server_fleet_manager.js"
 import Scheduler from "scheduler/scheduler.js"
 import ToolsManager from "tools_manager.js"
+// import SingularityToolsManager from "singularity_tools_manager.js"
 import NetworkScanner from "network_scanner.js"
 import GlobalMessenger from "global_messenger.js"
 import NF from "util_number_formatter.js"
-
 
 export async function main(ns) {
     ns.disableLog("ALL")
     let messenger = new GlobalMessenger(ns, "OVERMIND")
     let serverFleetManager = new ServerFleetManager(ns, messenger)
-    let scheduler = new Scheduler(ns, messenger)
-    let toolsManager = new ToolsManager(ns)
     let networkScanner = new NetworkScanner(ns, messenger)
+    let scheduler = new Scheduler(ns, messenger, networkScanner)
+    let toolsManager = new ToolsManager(ns)
+
     let nf = new NF(ns)
 
     while (true) {
@@ -50,10 +51,6 @@ export async function main(ns) {
                 messenger.queue("Next upgrade costs " + nf.money(nextFleetUpgradeCost) + " - bit out of the budget", "info")
             }
         }
-
-        let hackTargets = networkScanner.currentTargetList()
-        // ns.tprint("hacktargets: " + hackTargets.map(s => s.hostname))
-        scheduler.updateTargetList(hackTargets)
 
         messenger.emit()
 
