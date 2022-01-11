@@ -82,7 +82,12 @@ export default class {
     }
 
     upgradesRemaining() {
-        return this.getServerRam(this.smallestServer()) < this.maxPossibleRam
+        let smallestServer = this.smallestServer()
+        if (smallestServer === undefined) {
+            return false
+        } else {
+            return this.getServerRam(smallestServer) < this.maxPossibleRam
+        }
     }
 
     // TODO: This needs to return some kind of finished state when all servers have maxRam
@@ -90,15 +95,16 @@ export default class {
         let hostname = this.smallestServer()
         let currentRam = this.fleetWideLowestRam()
         let targetRam = Math.max(currentRam * 2, this.minRam)
+        if (currentRam < targetRam) {
+            this.messenger.queue("Upgrading [" + hostname + "] from " + currentRam + "GB to " + targetRam + "GB for " + this.nf.money(this.ns.getPurchasedServerCost(targetRam)), "success")
+            let boughtServer = this.buyServer(hostname, targetRam)
+            if ("" === boughtServer) {
+                this.messenger.queue("Somehow failed to buy " + hostname + " :(", "error")
+            }
+        }
 
         if (budget != 0) {
             targetRam = this.findUpgradeInBudgetFor(targetRam, budget)
-        }
-
-        this.messenger.queue("Upgrading [" + hostname + "] from " + currentRam + "GB to " + targetRam + "GB for " + this.nf.money(this.ns.getPurchasedServerCost(targetRam)), "success")
-        let boughtServer = this.buyServer(hostname, targetRam)
-        if ("" === boughtServer) {
-            this.messenger.queue("Somehow failed to buy " + hostname + " :(", "error")
         }
     }
 }
