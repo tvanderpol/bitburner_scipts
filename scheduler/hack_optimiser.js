@@ -47,9 +47,10 @@ export default class {
     // newBalance * factor = moneyMax
     let growthFactor = moneyMax / newBalance
 
-    if (growthFactor === Infinity || growthFactor === NaN) {
+    if (growthFactor === Infinity || Number.isNaN(growthFactor)) {
       // Whoops we overdid it earlier by accident
-      growthFactor = 100
+      // Let's just set this to a large number
+      growthFactor = 10000
     } else if (growthFactor < 1) {
       growthFactor = 1
     }
