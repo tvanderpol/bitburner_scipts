@@ -23,6 +23,10 @@ export default class {
     return this.lastTaskFinished
   }
 
+  get taskCount() {
+    return this.tasks.size
+  }
+
   addTask(task, runTime, threadCount) {
     this.log.dbg(`Adding job [task, runTime, threadCount]: ${[task, runTime, threadCount]}`)
     if (threadCount > 0) {

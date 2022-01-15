@@ -1,7 +1,7 @@
 /** @param {NS} ns **/
 
 import NetworkScanner from "network_scanner.js"
-import NF from 'util_number_formatter.js'
+import NF from 'util/number_formatter.js'
 import GlobalMessenger from "global_messenger.js"
 
 function prettyPrint(networkScanner, ns, nf, target) {

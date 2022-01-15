@@ -15,7 +15,7 @@ export default class {
     this.futureHackDifficulty = null
     this.futureHackDifficultyTimestamp
     this.futureMoneyMaxed = this.currentMoneyMaxed
-    this.futureMoneyMaxedTimestamp = this.ns.getTimeSinceLastAug()
+    this.futureMoneyMaxedTimestamp = -1
 
   }
 
@@ -128,6 +128,7 @@ export default class {
 
   reserveTimeslot(slot, jobId) {
     this.reservations.set(slot, jobId);
+    this.cleanPastTimeslots()
     return slot;
   }
 
@@ -138,7 +139,7 @@ export default class {
     while (!slotAvailable && currentSlot < maxSlotsToCheck) {
       proposedSlot += 1000;
       slotAvailable = !this.reservations.has(proposedSlot);
-      this.log.dbg(`Checking ${proposedSlot} - available: ${slotAvailable} (slot nr ${currentSlot})`);
+      // this.log.dbg(`Checking ${proposedSlot} - available: ${slotAvailable} (slot nr ${currentSlot})`)
       currentSlot += 1;
     }
 
@@ -154,8 +155,17 @@ export default class {
     return this.reserveTimeslot(availableSlot, jobId);
   }
 
-  validateTimeslots() {
-    // once a timeslot has expired, check that the target is in fact still maximised
-    // and delete the entry.
+  cleanPastTimeslots() {
+    let now = this.ns.getTimeSinceLastAug();
+    let pastKeys = []
+    for (const key of this.reservations.keys()) {
+      if (key < now) {
+        pastKeys.push(key)
+      }
+    }
+
+    for (const key of pastKeys) {
+      this.reservations.delete(key)
+    }
   }
 }

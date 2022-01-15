@@ -1,15 +1,15 @@
 /** @param {NS} ns **/
 
-import NF from "util_number_formatter.js"
+import NF from "util/number_formatter.js"
 
 export default class {
-    constructor(ns, messenger) {
+    constructor(ns, messenger, maxRamToUpgradeTo = 4096) {
         this.ns = ns
         this.nf = new NF(ns)
         this.messenger = messenger
         this.minRam = 64
         // this.maxPossibleRam = this.ns.getPurchasedServerMaxRam()
-        this.maxPossibleRam = 4096 * 4
+        this.maxRamToUpgradeTo = maxRamToUpgradeTo
         this.hostnames = this.generateHostNames()
     }
 
@@ -37,7 +37,7 @@ export default class {
     }
 
     fleetWideLowestRam() {
-        return this.serverCapacities().reduce((acc, next) => Math.min(acc, next), this.maxPossibleRam)
+        return this.serverCapacities().reduce((acc, next) => Math.min(acc, next), this.maxRamToUpgradeTo)
     }
 
     smallestServer() {
@@ -50,7 +50,7 @@ export default class {
         let currentRam = this.getServerRam(hostname)
         // No less than minimum but don't go over max either:
         let smallestUpgradeRam = Math.max(currentRam * 2, this.minRam)
-        smallestUpgradeRam = Math.min(smallestUpgradeRam, this.maxPossibleRam)
+        smallestUpgradeRam = Math.min(smallestUpgradeRam, this.maxRamToUpgradeTo)
 
         return this.ns.getPurchasedServerCost(smallestUpgradeRam)
     }
@@ -63,11 +63,12 @@ export default class {
         // this.ns.tprint("targetRam: " + targetRam + ", proposedTargetRam: " + proposedTargetRam)
         while (proposedPrice < budget) {
             targetRam = proposedTargetRam
-            if (targetRam === this.maxPossibleRam) {
+            if (targetRam === this.maxRamToUpgradeTo) {
                 break;
             }
-            proposedTargetRam = Math.min(targetRam * 2, this.maxPossibleRam)
+            proposedTargetRam = Math.min(targetRam * 2, this.maxRamToUpgradeTo)
             proposedPrice = this.ns.getPurchasedServerCost(proposedTargetRam)
+            this.ns.tprint(`[${this.ns.getTimeSinceLastAug()}] While in findUpgradeInBudgetFor`)
         }
 
         return targetRam;
@@ -86,7 +87,7 @@ export default class {
         if (smallestServer === undefined) {
             return false
         } else {
-            return this.getServerRam(smallestServer) < this.maxPossibleRam
+            return this.getServerRam(smallestServer) < this.maxRamToUpgradeTo
         }
     }
 

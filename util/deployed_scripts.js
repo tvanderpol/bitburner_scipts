@@ -3,11 +3,11 @@
 export default class {
   constructor(ns) {
     this.ns = ns
-    this.hScript = "hack.js"
+    this.hScript = "/deploy/hack.js"
     this.hScriptRam = ns.getScriptRam(this.hScript)
-    this.gScript = "grow.js"
+    this.gScript = "/deploy/grow.js"
     this.gScriptRam = ns.getScriptRam(this.gScript)
-    this.wScript = "weaken.js"
+    this.wScript = "/deploy/weaken.js"
     this.wScriptRam = ns.getScriptRam(this.wScript)
   }
 

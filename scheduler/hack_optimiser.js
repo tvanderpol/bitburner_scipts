@@ -1,8 +1,9 @@
 import DeployedScripts from "util/deployed_scripts.js";
 
 export default class {
-  constructor(ns, messenger) {
+  constructor(ns, logger) {
     this.ns = ns;
+    this.log = logger
     this.ds = new DeployedScripts(ns);
     this.costCache = new Map();
   }
@@ -46,24 +47,19 @@ export default class {
     // newBalance * factor = moneyMax
     let growthFactor = moneyMax / newBalance
 
-    if (growthFactor === Infinity) {
+    if (growthFactor === Infinity || growthFactor === NaN) {
       // Whoops we overdid it earlier by accident
       growthFactor = 100
+    } else if (growthFactor < 1) {
+      growthFactor = 1
     }
+
     return growthFactor;
   }
 
   findWeakenThreadsForImpact(desiredSecurityImpact, coreCount) {
-    let threadCount = 1;
-    let actualImpact = 0;
-    while (actualImpact < desiredSecurityImpact) {
-      actualImpact = this.ns.weakenAnalyze(threadCount, coreCount);
-      threadCount++;
-    }
-
-    return threadCount;
+    return Math.ceil(desiredSecurityImpact / this.ns.weakenAnalyze(1, coreCount));
   }
-
 
   ramRequiredFor(growThreads = 0, weakenThreads = 0, hackThreads = 0) {
     return growThreads * this.ds.growScriptRam +

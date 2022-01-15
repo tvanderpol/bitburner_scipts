@@ -13,7 +13,7 @@ export default class {
     this.ds = new DeployedScripts(ns);
     this.hackOptimiser = new HackOptimiser(ns, messenger)
     this.minimumRamOnHost = this.ds.weakenScriptRam + this.ds.growScriptRam;
-    this.log = new Logger(ns, "Scheduler", false);
+    this.log = new Logger(ns, "Scheduler", false)
 
     this.workpoolHosts = []
     this.targetList = []
@@ -50,7 +50,7 @@ export default class {
       this.nextTargetHostname = null;
       this.nextTargetObject = null
     } else if (this.nextTargetHostname != hostname && hostname != undefined) {
-      this.ns.tprint(`Overmind considers ${hostname} to be next`)
+      this.ns.tprint(`Overmind considers ${hostname} to be next!`)
       this.messenger.queue(`nextTarget set to ${hostname}`, "success");
       this.nextTargetHostname = hostname;
       this.nextTargetObject = new Target(this.ns, hostname);
@@ -110,14 +110,7 @@ export default class {
   }
 
   findWeakenThreadsForImpact(desiredSecurityImpact, coreCount) {
-    let threadCount = 1;
-    let actualImpact = 0;
-    while (actualImpact < desiredSecurityImpact) {
-      actualImpact = this.ns.weakenAnalyze(threadCount, coreCount);
-      threadCount++;
-    }
-
-    return threadCount;
+    return Math.ceil(desiredSecurityImpact / this.ns.weakenAnalyze(1, coreCount));
   }
 
   weakenTarget(target, host, job, projectedDifficulty, executeAfter) {
@@ -178,8 +171,8 @@ export default class {
       proposedWeakenThreads = this.findWeakenThreadsForImpact(this.ns.growthAnalyzeSecurity(proposedGrowthThreads), coreCount);
 
       proposedRamCost = this.ramRequiredFor(proposedGrowthThreads, proposedWeakenThreads);
-      // this.log.dbg(`Proposing growth[${proposedGrowthThreads}] / weaken[${proposedWeakenThreads}] (${proposedRamCost}GB)`)
-      maxAttempts += 1;
+      this.ns.tprint(`[${this.ns.getTimeSinceLastAug()}] while in scheduler.growUsingRam() (attempts ${maxAttempts})`)
+      maxAttempts += 1
     }
 
     return [weakenThreads, growthThreads];
@@ -227,13 +220,6 @@ export default class {
     return Math.ceil(targetPercentage / singleThreadFraction);
   }
 
-  calculateGrowthFactor(moneyMax, moneyAvailable, actualPercentage) {
-    let newBalance = moneyAvailable - (moneyAvailable * actualPercentage);
-
-    // newBalance * factor = moneyMax
-    return moneyMax / newBalance;
-  }
-
   hackTarget(target, host, job) {
     // Let's not try to grab more than 95% of the target
     let maxThreads = Math.round(0.95 / this.ns.hackAnalyze(target.name))
@@ -262,14 +248,15 @@ export default class {
     for (let host of this.workpoolServers) {
       this.log.dbg(`Checking schedule for ${host.name}`);
       host.updateDetails()
-      if (host.availableRam < this.minimumRamOnHost) {
-        continue
-      } else if ((host.availableRam / host.maxRam) < 0.8) {
-        // Let's not schedule a million tiny jobs, wait until we have at least a chunk of memory available
-        continue
-      } else {
-        this.log.dbg(`${host.name} has ${host.availableRam}GB to play with, let's go.`);
-      }
+      if (host.availableRam)
+        if (host.availableRam < this.minimumRamOnHost) {
+          continue
+        } else if ((host.availableRam / host.maxRam) < 0.8) {
+          // Let's not schedule a million tiny jobs, wait until we have at least a chunk of memory available
+          continue
+        } else {
+          this.log.dbg(`${host.name} has ${host.availableRam}GB to play with, let's go.`);
+        }
 
       let target = this.target
       if (this.nextTarget != null && !this.nextTarget.finishedWeakening && Math.random() > 0.9) {
@@ -302,7 +289,7 @@ export default class {
 
       let output = await job.scheduleOn(host);
       if (output.length > 0 && -1 != output.findIndex(e => e === 0)) {
-        this.log.warn(`One of the jobs failed to schedule for job[${job.id}]`);
+        this.log.warn(`One of the jobs failed to schedule for job[${job.id}] (${output})`);
       } else {
         this.log.dbg(`output from scheduleOn: ${output}`);
       }
@@ -310,10 +297,22 @@ export default class {
       if (futureHackDifficulty != target.hackDifficulty) {
         this.log.info(`We're going to change hack difficulty in the future, changing projection.`);
         this.log.dbg(`updateHackDifficultyProjection(job.finishTime, futureHackDifficulty): (updateHackDifficultyProjection(${job.finishTime}, ${futureHackDifficulty}))`);
-        target.updateHackDifficultyProjection(job.finishTime, futureHackDifficulty);
+        if (job.finishTime === null) {
+          if (job.taskCount != 0) {
+            this.log.warn(`Job id ${job.id} has a finish time of null but has actual tasks associated!`)
+          }
+        } else {
+          target.updateHackDifficultyProjection(job.finishTime, futureHackDifficulty);
+        }
       }
       if (!(target.moneyAvailable == target.moneyMax) && futureMoneyMax) {
-        target.setFutureMoneyMax(job.finishTime, futureMoneyMax);
+        if (job.finishTime === null) {
+          if (job.taskCount != 0) {
+            this.log.warn(`Job id ${job.id} has a finish time of null but has actual tasks associated!`)
+          }
+        } else {
+          target.setFutureMoneyMax(job.finishTime, futureMoneyMax);
+        }
       }
     }
   }
