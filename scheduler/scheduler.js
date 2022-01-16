@@ -11,7 +11,7 @@ export default class {
     this.messenger = messenger
     this.networkScanner = networkScanner
     this.ds = new DeployedScripts(ns);
-    this.hackOptimiser = new HackOptimiser(ns, messenger)
+    this.hackOptimiser = new HackOptimiser(ns, new Logger(ns, 'hackOptimiser', true))
     this.minimumRamOnHost = this.ds.weakenScriptRam + this.ds.growScriptRam;
     this.log = new Logger(ns, "Scheduler", false)
 
@@ -222,7 +222,8 @@ export default class {
 
   hackTarget(target, host, job) {
     // Let's not try to grab more than 95% of the target
-    let maxThreads = Math.round(0.95 / this.ns.hackAnalyze(target.name))
+    // Let's also not try for more than 50k threads (this becomes infinity sometimes)
+    let maxThreads = Math.min(Math.round(0.95 / this.ns.hackAnalyze(target.name)), 50000)
     // TODO: I want to wait until most of the ram on the host is available to schedule fewer but bigger jobs:
     let memBudget = host.availableRam
     let hackCost = this.hackOptimiser.findOptimumHackForMemory(target, host.cpuCores, memBudget, 1, maxThreads)
@@ -251,7 +252,7 @@ export default class {
       if (host.availableRam)
         if (host.availableRam < this.minimumRamOnHost) {
           continue
-        } else if ((host.availableRam / host.maxRam) < 0.8) {
+        } else if ((host.availableRam / host.maxRam) < 0.2) {
           // Let's not schedule a million tiny jobs, wait until we have at least a chunk of memory available
           continue
         } else {

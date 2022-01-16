@@ -1,8 +1,8 @@
 # bitburner_scipts
 
-My [BitBurner](https://danielyxie.github.io/bitburner/) scripts. This is a loose collection of scripts I use in the game. There's no guarantee they're any good, but I was starting to feel bad these weren't in source control!
+My [BitBurner](https://danielyxie.github.io/bitburner/) scripts. This started as a manually copy / pasted grabbag but has since moved to using the excellent [VSCode plugin](https://github.com/bitburner-official/bitburner-vscode) so things are a little bit more orderly here.
 
-It's a bit of a manual process to get these scripts out of the game and into this repo so there's not going to be a particularly clean commit history.
+Note I don't claim to be a Javascript programmer so this is probably a mess. In fact, I'm not sure how you got here to begin with?
 
 ## Gotchas
 

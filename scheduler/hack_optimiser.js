@@ -50,7 +50,7 @@ export default class {
     if (growthFactor === Infinity || Number.isNaN(growthFactor)) {
       // Whoops we overdid it earlier by accident
       // Let's just set this to a large number
-      growthFactor = 10000
+      growthFactor = 1000
     } else if (growthFactor < 1) {
       growthFactor = 1
     }
