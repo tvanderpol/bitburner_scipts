@@ -121,10 +121,10 @@ export default class {
     let availableRam = host.availableRam;
     // Let's leave a bit of headroom on home if we can spare it to make scripts easier to run.
     if (host.name === "home") {
-      if (host.maxRam > 32 && host.maxRam <= 256) {
-        availableRam -= 32
+      if (host.maxRam <= 256) {
+        availableRam = 0
       } else if (host.maxRam > 256) {
-        availableRam -= 64
+        availableRam -= 256
       }
     }
 
@@ -163,6 +163,7 @@ export default class {
     let maxAttempts = 0;
     let growthThreads, weakenThreads;
     // TODO: some caching here, or some smarter way of finding the right amount of threads?
+    // It goes pretty deep sometimes
     // while (proposedRamCost < availableRam && maxAttempts < 60) {
     while (proposedRamCost < availableRam) {
       growthThreads = proposedGrowthThreads;
@@ -171,7 +172,7 @@ export default class {
       proposedWeakenThreads = this.findWeakenThreadsForImpact(this.ns.growthAnalyzeSecurity(proposedGrowthThreads), coreCount);
 
       proposedRamCost = this.ramRequiredFor(proposedGrowthThreads, proposedWeakenThreads);
-      this.ns.tprint(`[${this.ns.getTimeSinceLastAug()}] while in scheduler.growUsingRam() (attempts ${maxAttempts})`)
+      //this.ns.tprint(`[${this.ns.getTimeSinceLastAug()}] while in scheduler.growUsingRam() (attempts ${maxAttempts})`)
       maxAttempts += 1
     }
 

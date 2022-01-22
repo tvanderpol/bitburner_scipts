@@ -20,7 +20,7 @@ export async function main(ns) {
     let nf = new NF(ns)
 
     while (true) {
-        // TODO: manage hacknet buyings
+        // TODO: manage hacknet buying
         let currentBalance = ns.getServerMoneyAvailable("home")
 
         let missingTools = toolsManager.checkForMissingTools()
