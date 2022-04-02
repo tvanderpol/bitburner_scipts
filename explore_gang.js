@@ -12,6 +12,6 @@ export async function main(ns) {
   while (true) {
     don.manage()
     messenger.emit()
-    await ns.sleep(1000)
+    await ns.sleep(10000)
   }
 }

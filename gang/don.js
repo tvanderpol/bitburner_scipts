@@ -12,6 +12,7 @@ export default class {
     this.ascenscionTreshold = 1.5
     this.maxMembersTraining = 2
     this.maxMemberCount = 12
+    this.maxWantedPercent = 0.01
     this.members = ns.gang.getMemberNames().map(name => new Member(ns, messenger, name))
     this.goals = []
     this.considerStrategy()
@@ -27,7 +28,7 @@ export default class {
     let maxRepReq = this.findHighestRepReqForAugs(factionAugs)
     let gangTerritory = gangInfo['territory']
 
-    if (this.goals.includes('REDUCE_WANTED' && wantedLevel > 1)) {
+    if (this.goals.includes('REDUCE_WANTED') && wantedLevel > 1) {
       // If we're already doing it, just push it down to 1 please
       this.goals = ['REDUCE_WANTED']
       return
@@ -50,7 +51,10 @@ export default class {
     }
 
     // Let's not lose more than 5% of progress to wanted level
-    if (wantedPenalty > 0.05) {
+    // 
+    // There's a weird bug where wanted level penalty becomes 50% sometimes so let's also check
+    // we aren't already at min wanted level.
+    if (wantedPenalty > this.maxWantedPercent && wantedLevel > 1) {
       this.goals = ['REDUCE_WANTED']
     }
 
@@ -99,7 +103,7 @@ export default class {
     let numberofMembersTraining = this.members.filter(m => m.task === 'Train Combat').length
     let trainingSlotAvailable = (numberofMembersTraining < this.maxMembersTraining)
 
-    this.goals = this.considerStrategy()
+    this.considerStrategy()
 
     for (let member of this.members) {
       member.updateDetails()

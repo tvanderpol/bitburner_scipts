@@ -12,7 +12,7 @@ export async function main(ns) {
         ns.tprint(`Gonna commit a cheeky ${crime}`)
       ns.commitCrime(crime)
     }
-    await ns.sleep(1000)
+    await ns.sleep(2000)
   }
   // let details = ns.getCrimeStats('larceny')
   // for (const key of Object.keys(details)) {
