@@ -66,14 +66,27 @@ export default class {
   }
 
   reconsiderTargets() {
-    if (this.networkScanner.minSecurityTargetList().length < 1 || this.networkScanner.currentTargetList().length < 1) {
+    if (this.networkScanner.minSecurityTargetList().length < 1 && this.networkScanner.currentTargetList().length < 1) {
       return
     }
 
     let topMinSecurityTarget = this.networkScanner.minSecurityTargetList()[0]
     let topGlobalTarget = this.networkScanner.currentTargetList()[0]
     if (this.target === null || this.target === undefined) {
-      this.target = topMinSecurityTarget.name
+      if (topMinSecurityTarget) {
+        this.target = topMinSecurityTarget.name
+      } else {
+        this.target = topGlobalTarget.name
+        this.nextTarget = null
+        // There's no other useful targets and no min security target, some of the code
+        // below expects there to be at least one of each type of target
+        // so it blows up with nulls.
+        return
+      }
+    }
+    if (this.target.name == topGlobalTarget.name && !topMinSecurityTarget) {
+      // As above, we don't have a min security target, bail.
+      return
     }
     if (this.target.name != topMinSecurityTarget.name && this.target.score < topMinSecurityTarget.score) {
       this.log.info(`${topMinSecurityTarget.name} has minimum security and is better, switching`)
