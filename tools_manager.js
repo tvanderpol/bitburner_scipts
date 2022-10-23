@@ -1,22 +1,51 @@
 /** @param {NS} ns **/
 export default class {
-    constructor(ns) {
-        this.ns = ns
-        this.tools = ["AutoLink.exe", "BruteSSH.exe", "DeepscanV1.exe", "DeepscanV2.exe","FTPCrack.exe", "HTTPWorm.exe", "relaySMTP.exe", "ServerProfiler.exe", "SQLInject.exe"]
+    constructor(ns, messenger) {
+        this.ns = ns;
+        this.messenger = messenger;
+        this.tools = ns.singularity.getDarkwebPrograms();
+        this.haveTor = this.ns.singularity.purchaseTor();
     }
 
-    sufficientCashForNextTool(currentBalance) {
-        return currentBalance > 250_000_000
+    get canCheckTools() {
+        if (!this.haveTor) {
+            this.haveTor = this.ns.singularity.purchaseTor();
+        }
+
+        return this.haveTor
     }
 
-    checkForMissingTools() {
+    get missingTools() {
         let missingTools = []
-        for(let tool of this.tools) {
-            if (!this.ns.fileExists(tool, "home")) {
-                missingTools.push(tool)
-            }            
+        if (this.haveTor) {
+            for (let tool of this.tools) {
+                if (!this.ns.fileExists(tool, "home")) {
+                    missingTools.push(tool)
+                }
+            }
+        } else {
+            this.haveTor = this.ns.singularity.purchaseTor();
         }
 
         return missingTools
+    }
+
+    get nextMostExpensiveToolCost() {
+        return this.missingTools
+            .map(tool => this.ns.singularity.getDarkwebProgramCost(tool))
+            .sort
+            .first
+    }
+
+    sufficientCashForNextTool(currentBalance) {
+        return currentBalance > nextMostExpensiveToolCost
+    }
+
+    buyAllAffordableTools() {
+        this.missingTools.map(tool => this.ns.singularity.purchaseProgram(tool))
+    }
+
+    buyTool() {
+        this.ns.singularity
     }
 }

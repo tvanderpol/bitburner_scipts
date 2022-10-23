@@ -15,7 +15,7 @@ export async function main(ns) {
     let serverFleetManager = new ServerFleetManager(ns, messenger, 4096 * 16)
     let networkScanner = new NetworkScanner(ns, messenger)
     let scheduler = new Scheduler(ns, messenger, networkScanner)
-    let toolsManager = new ToolsManager(ns)
+    let toolsManager = new ToolsManager(ns, messenger)
 
     let nf = new NF(ns)
 
@@ -23,9 +23,10 @@ export async function main(ns) {
         // TODO: manage hacknet buying
         let currentBalance = ns.getServerMoneyAvailable("home")
 
-        let missingTools = toolsManager.checkForMissingTools()
-        if (missingTools.length > 0 && toolsManager.sufficientCashForNextTool(currentBalance)) {
-            messenger.queue(missingTools.length + " missing tools.", "warning")
+        if (toolsManager.canCheckTools) {
+            if (toolsManager.missingTools != []) {
+                toolsManager.buyAllAffordableTools()
+            }
         }
 
         networkScanner.mapServers()
