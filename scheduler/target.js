@@ -30,7 +30,10 @@ export default class {
   }
 
   get finishedWeakening() {
-    return (this.minDifficulty === this.hackDifficulty)
+    // Give the definition of finished a bit of wiggle room
+    // so we don't get our wires crossed between finishing minimising
+    // and checking to see if it's valid.
+    return (this.minDifficulty <= this.hackDifficulty + 1)
   }
 
   get availableMoneyPercentage() {
