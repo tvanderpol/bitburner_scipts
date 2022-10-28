@@ -1,21 +1,14 @@
 /** @param {NS} ns **/
 
 export async function main(ns) {
-  const crime = 'shoplift'
+  let crimes = ['assassination', 'bondforgery', 'dealdrugs', 'grandtheftauto', 'heist', 'homicide', 'kidnap', 'larceny', 'mug', 'robstore', 'shoplift', 'traffickarms']
 
-  let doingCrime = true
-  let timeBetweenCrime = 0
+  ns.tail()
 
-  while (doingCrime) {
-    if (!ns.isBusy()) {
-      if (timeBetweenCrime = 0)
-        ns.tprint(`Gonna commit a cheeky ${crime}`)
-      ns.commitCrime(crime)
-    }
-    await ns.sleep(2000)
+  for (const crime of crimes) {
+    let details = ns.singularity.getCrimeStats(crime)
+
+    // ns.print(`Details for ${crime}: karma: ${details['karma']}, time: ${details['time']}`)
+    ns.print(`Karma loss per second for ${crime}: ${(details['karma'] / details['time']) * 1000}`)
   }
-  // let details = ns.getCrimeStats('larceny')
-  // for (const key of Object.keys(details)) {
-  //   ns.tprint(`larceny: ${key}: ${details[key]}`)
-  // }
 }

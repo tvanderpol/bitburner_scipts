@@ -23,9 +23,9 @@ export default class {
     let faction = gangInfo['faction']
     let wantedPenalty = 1 - gangInfo['wantedPenalty']
     let wantedLevel = gangInfo['wantedLevel']
-    let currentFactionRep = this.ns.getFactionRep(faction)
-    let factionAugs = this.ns.getAugmentationsFromFaction(faction)
-    let maxRepReq = this.findHighestRepReqForAugs(factionAugs)
+    // let currentFactionRep = this.ns.getFactionRep(faction)
+    // let factionAugs = this.ns.getAugmentationsFromFaction(faction)
+    // let maxRepReq = this.findHighestRepReqForAugs(factionAugs)
     let gangTerritory = gangInfo['territory']
 
     if (this.goals.includes('REDUCE_WANTED') && wantedLevel > 1) {
@@ -37,11 +37,11 @@ export default class {
     // A sensible default
     this.goals = ["MONEY"]
 
-    if (currentFactionRep < maxRepReq) {
-      this.goals.push("REP")
-    }
+    // if (currentFactionRep < maxRepReq) {
+    //   this.goals.push("REP")
+    // }
 
-    if (gangTerritory < 100) {
+    if (gangTerritory < 1.0) {
       this.goals.push("TERRITORY")
     }
 
@@ -110,18 +110,20 @@ export default class {
       member.buyUpgrades()
 
       if (this.goals.includes('REDUCE_WANTED')) {
-        member.setTask('Ethical Hacking')
+        member.setTask('Vigilante Justice')
       } else if (this.goals.includes('EXPAND')) {
         if (member.highestStat < avgHighestStat * 0.8) {
-          if (member.task !== 'Train Hacking' && trainingSlotAvailable) {
-            this.messenger.queue(`${member.name} is going to train hacking for a while...`, 'info')
-            member.setTask('Train Hacking')
+          if (member.task !== 'Train Combat' && trainingSlotAvailable) {
+            this.messenger.queue(`${member.name} is going to train combat for a while...`, 'info')
+            member.setTask('Train Combat')
             // if there's still room we can decide that next time we run this, only 1 trainee at a time
             trainingSlotAvailable = false
           }
         } else {
-          member.startMaxInfluenceTask()
+          member.startEffectiveInfluenceTask()
         }
+      } else if (this.goals.includes('MONEY')) {
+        member.startMaxMoneyTask();
       } else {
         if (member.highestStat < avgHighestStat * 0.8) {
           if (member.task !== 'Train Combat' && trainingSlotAvailable) {
@@ -153,8 +155,8 @@ export default class {
       let leastSkilledMember = this.members
         .sort((a, b) => a.highestStat - b.highestStat)[0]
 
-      this.messenger.queue(`${leastSkilledMember.name} is lagging in skill, training hacking.`)
-      leastSkilledMember.setTask('Train Hacking')
+      this.messenger.queue(`${leastSkilledMember.name} is lagging in skill, training combat.`)
+      leastSkilledMember.setTask('Train Combat')
     }
   }
 }

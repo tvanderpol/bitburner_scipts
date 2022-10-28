@@ -1,6 +1,7 @@
 /** @param {NS} ns **/
 
 import NF from "util/number_formatter.js"
+import Task from "gang/task"
 
 export default class {
   constructor(ns, messenger, name) {
@@ -18,6 +19,7 @@ export default class {
     this.dexAscenscionWeight = 1
     this.agiAscenscionWeight = 1
     this.chaAscenscionWeight = 1
+    this.difficultyThreshold = 5
   }
 
   get augmentations() {
@@ -93,6 +95,10 @@ export default class {
     return this.details['cha']
   }
 
+  get sumOfCombatStats() {
+    return this.str + this.def + this.agi + this.dex
+  }
+
   get hackAscBonus() {
     return this.details['hack_asc_mult']
   }
@@ -125,16 +131,23 @@ export default class {
     return this.task === 'Training Hacking' || this.task === 'Training Combat'
   }
 
-  startMaxInfluenceTask() {
+  startEffectiveInfluenceTask() {
     let tasks = this.availableTasks
-      .sort((a, b) => b['baseRespect'] - a['baseRespect'])
-      .filter(t => t['difficulty'] <= this.hack * 0.1)
+      .map(task => new Task(this.ns, this.messenger, task, this))
+      .filter(task => task.effectiveRespect > 0)
+      .filter(task => task.relativeDifficulty < this.difficultyThreshold)
+      .sort((a, b) => a.relativeDifficulty - b.relativeDifficulty)
 
-    if (tasks.length < 1) {
-      this.setTask('Ransomware')
-    } else {
-      this.setTask(tasks[0].name)
-    }
+    // this.ns.print(tasks.map(t => t.description).join("\n"))
+
+    this.setTask(tasks[0].name)
+  }
+
+  startMaxMoneyTask() {
+    let tasks = this.availableTasks
+      .sort((a, b) => b['baseMoney'] - a['baseMoney'])
+
+    this.setTask(tasks[0].name)
   }
 
   setTask(taskName) {
