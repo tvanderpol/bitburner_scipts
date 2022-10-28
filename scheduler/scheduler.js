@@ -108,14 +108,14 @@ export default class {
     }
   }
 
-  async prepareServers() {
+  prepareServers() {
     for (const host of this.workpoolServers) {
       if ("home" != host.name) { // We develop here, let's not get things confused.
         let deployableFiles = this.ns.ls("home", "deploy/");
         for (const file of deployableFiles) {
           if (!this.ns.fileExists(file, host.name)) {
             this.log.dbg(`scp home:/${file} ${host.name}:/${file}`);
-            await this.ns.scp(file, "home", host.name);
+            this.ns.scp(file, host.name, "home");
           }
         }
       }
@@ -258,12 +258,12 @@ export default class {
       this.ns.tprint("ERROR BEEP BOOP NO TARGET!!")
     }
     this.target.updateDetails()
-    await this.prepareServers()
+    this.prepareServers()
 
     for (let host of this.workpoolServers) {
       this.log.dbg(`Checking schedule for ${host.name}`);
       host.updateDetails()
-      if (host.availableRam)
+      if (host.availableRam) {
         if (host.availableRam < this.minimumRamOnHost) {
           continue
         } else if ((host.availableRam / host.maxRam) < 0.2) {
@@ -272,7 +272,7 @@ export default class {
         } else {
           this.log.dbg(`${host.name} has ${host.availableRam}GB to play with, let's go.`);
         }
-
+      }
       let target = this.target
       if (this.nextTarget != null && !this.nextTarget.finishedWeakening && Math.random() > 0.9) {
         target = this.nextTarget
