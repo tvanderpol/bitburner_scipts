@@ -10,7 +10,9 @@ export default class {
     this.name = name
     this.nf = new NF(ns)
     this.taskChanged = 0 // Set to lastAug time when task switches
-    this.availableTasks = this.ns.gang.getTaskNames().map(name => this.ns.gang.getTaskStats(name))
+    this.availableTasks = this.ns.gang.getTaskNames()
+      .map(name => this.ns.gang.getTaskStats(name))
+      .filter(name => name != 'Unassigned')
     this.details = ns.gang.getMemberInformation(name)
     this.potentialAscenscionValues = ns.gang.getAscensionResult(this.name)
     this.hackAscenscionWeight = 1
@@ -19,7 +21,7 @@ export default class {
     this.dexAscenscionWeight = 1
     this.agiAscenscionWeight = 1
     this.chaAscenscionWeight = 1
-    this.difficultyThreshold = 5
+    this.difficultyThreshold = 20
   }
 
   get augmentations() {
@@ -136,7 +138,7 @@ export default class {
       .map(task => new Task(this.ns, this.messenger, task, this))
       .filter(task => task.effectiveRespect > 0)
       .filter(task => task.relativeDifficulty < this.difficultyThreshold)
-      .sort((a, b) => a.relativeDifficulty - b.relativeDifficulty)
+      .sort((a, b) => a.effectiveRespect - b.effectiveRespect)
 
     // this.ns.print(tasks.map(t => t.description).join("\n"))
 
@@ -152,7 +154,7 @@ export default class {
 
   setTask(taskName) {
     if (!this.ns.gang.getTaskNames().includes(taskName)) {
-      this.messenger.queue(`No task named ${taskName}!`, 'error')
+      this.messenger.queue(`[${this.name}] No task named ${taskName}!`, 'error')
     } else {
       this.taskChanged = this.ns.getTimeSinceLastAug()
       this.ns.gang.setMemberTask(this.name, taskName)

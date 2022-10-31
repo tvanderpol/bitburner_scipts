@@ -13,20 +13,53 @@ export default class {
     this.maxMembersTraining = 2
     this.maxMemberCount = 12
     this.maxWantedPercent = 0.01
+    this.safetyMargin = 4.0
     this.members = ns.gang.getMemberNames().map(name => new Member(ns, messenger, name))
     this.goals = []
     this.considerStrategy()
+    this.ourGang = this.ns.gang.getGangInformation()['faction']
+    this.otherGangs = [
+      "Slum Snakes",
+      "Tetrads",
+      "The Syndicate",
+      "The Dark Army",
+      "Speakers for the Dead",
+      "NiteSec",
+      "The Black Hand"
+    ].filter(gangName => gangName != this.ourGang)
+    this.initFinished = true
   }
 
   considerStrategy() {
+    // Somehow (async / await?) it's possible this method gets called before init is done.
+    if (!this.initFinished) { return }
+
     let gangInfo = this.ns.gang.getGangInformation()
-    let faction = gangInfo['faction']
+    let otherGangInfo = this.ns.gang.getOtherGangInformation()
+    let ourPower = gangInfo['power']
+    let warfareEngaged = gangInfo['territoryWarfareEngaged']
     let wantedPenalty = 1 - gangInfo['wantedPenalty']
     let wantedLevel = gangInfo['wantedLevel']
-    // let currentFactionRep = this.ns.getFactionRep(faction)
-    // let factionAugs = this.ns.getAugmentationsFromFaction(faction)
-    // let maxRepReq = this.findHighestRepReqForAugs(factionAugs)
     let gangTerritory = gangInfo['territory']
+
+    const biggestRival = this.otherGangs.map(gangName => otherGangInfo[gangName])
+      .filter(a => a.territory > 0.0)
+      .sort((a, b) => b.power - a.power)[0]
+
+    if (!warfareEngaged) {
+      if (biggestRival.power * this.safetyMargin < ourPower) {
+        this.messenger.queue('We go to WARRRRRRRRR', 'success')
+        this.ns.gang.setTerritoryWarfare(true)
+      }
+    } else if (gangTerritory == 1.0) {
+      this.messenger.queue(`And he wept, for there were no streets left to conquer. (disabling warfare)`, 'error')
+      this.ns.gang.setTerritoryWarfare(false)
+    } else {
+      if (biggestRival.power * this.safetyMargin >= ourPower) {
+        this.messenger.queue('I dunno what happened but our lead vanished, retreating from war', 'warning')
+        this.ns.gang.setTerritoryWarfare(false)
+      }
+    }
 
     if (this.goals.includes('REDUCE_WANTED') && wantedLevel > 1) {
       // If we're already doing it, just push it down to 1 please
@@ -34,15 +67,12 @@ export default class {
       return
     }
 
-    // A sensible default
-    this.goals = ["MONEY"]
-
     // if (currentFactionRep < maxRepReq) {
     //   this.goals.push("REP")
     // }
 
     if (gangTerritory < 1.0) {
-      this.goals.push("TERRITORY")
+      this.goals = ["TERRITORY"]
     }
 
     // Overwrite our multi - priority list
@@ -56,6 +86,11 @@ export default class {
     // we aren't already at min wanted level.
     if (wantedPenalty > this.maxWantedPercent && wantedLevel > 1) {
       this.goals = ['REDUCE_WANTED']
+    }
+
+    if (this.goals.length == 0) {
+      // A sensible default
+      this.goals = ["MONEY"]
     }
 
     this.messenger.queue(`We have our goals: ${this.goals}`, 'info')
@@ -122,8 +157,17 @@ export default class {
         } else {
           member.startEffectiveInfluenceTask()
         }
+      } else if (this.goals.includes('MONEY') && this.goals.includes('TERRITORY')) {
+        if (Math.random() <= 0.5) {
+          member.setTask('Territory Warfare')
+        } else {
+          member.startMaxMoneyTask();
+        }
       } else if (this.goals.includes('MONEY')) {
         member.startMaxMoneyTask();
+      } else if (this.goals.includes('TERRITORY')) {
+        this.messenger.queue(`${member.name} is not warring but is plenty yoked, to the battlefield they go!`, 'info')
+        member.setTask('Territory Warfare')
       } else {
         if (member.highestStat < avgHighestStat * 0.8) {
           if (member.task !== 'Train Combat' && trainingSlotAvailable) {

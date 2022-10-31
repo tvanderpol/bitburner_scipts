@@ -21,6 +21,10 @@ export default class {
     )
   }
 
+  get name() {
+    return this.task.name
+  }
+
   get description() {
     return `${this.member.name} considers '${this.task['name']}': effectiveRespect: ${this.effectiveRespect}, effectiveMoney: ${this.effectiveMoney}, relativeDifficulty: ${this.relativeDifficulty}`
   }
